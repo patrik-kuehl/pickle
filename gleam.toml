@@ -1,0 +1,21 @@
+name = "gparsec"
+version = "0.1.0"
+description = "A parser combinator library for Gleam."
+licences = ["MIT"]
+repository = { type = "github", user = "patrik-kuehl", repo = "gparsec" }
+gleam = "~> 1.0"
+
+[documentation]
+pages = [
+    { title = "CHANGELOG", path = "changelog.html", source = "CHANGELOG.md" },
+    { title = "LICENSE", path = "license.html", source = "LICENSE.md" },
+]
+
+[javascript.deno]
+allow_read = true
+
+[dependencies]
+gleam_stdlib = ">= 0.37.0 and < 2.0.0"
+
+[dev-dependencies]
+startest = ">= 0.2.4 and < 2.0.0"
