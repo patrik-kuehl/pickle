@@ -108,6 +108,39 @@ pub fn optional_tests() {
   ])
 }
 
+pub fn many_tests() {
+  describe("gparsec/many", [
+    it("returns a parser that parsed multiple tokens", fn() {
+      gparsec.input("aaab", "Characters: ")
+      |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), "Characters: aaa"))
+    }),
+    it("returns a parser that parsed no tokens", fn() {
+      gparsec.input("abab", "Characters: ")
+      |> gparsec.many(gparsec.token(
+        _,
+        "aa",
+        fn(value, token) { value <> token },
+      ))
+      |> gparsec.token("ab", fn(value, token) { value <> token })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser(
+        ["a", "b"],
+        ParserPosition(0, 2),
+        "Characters: ab",
+      ))
+    }),
+    it("returns an error when a prior parser failed", fn() {
+      gparsec.input("aaa", "Characters: ")
+      |> gparsec.token("ab", fn(value, token) { value <> token })
+      |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(["ab"], "aa", ParserPosition(0, 1)))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }

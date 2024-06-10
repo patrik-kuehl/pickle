@@ -66,6 +66,16 @@ pub fn optional(
   }
 }
 
+pub fn many(
+  prev: ParserResult(a),
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(a) {
+  case parser(prev) {
+    Error(_) -> prev
+    result -> many(result, parser)
+  }
+}
+
 fn token_internal(
   prev: ParserResult(String),
   unprocessed_tokens: List(String),
