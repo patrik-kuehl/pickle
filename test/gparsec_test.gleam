@@ -61,3 +61,53 @@ pub fn token_tests() {
     }),
   ])
 }
+
+pub fn optional_tests() {
+  describe("gparsec/optional", [
+    it(
+      "returns a parser that parsed a set of tokens including some optional tokens",
+      fn() {
+        gparsec.input("(a,b)", Pair("", ""))
+        |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
+        |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
+        |> gparsec.token(",", gparsec.ignore_token)
+        |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
+        |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 5), Pair("a", "b")))
+      },
+    ),
+    it(
+      "returns a parser that parsed a set of tokens including some missing optional tokens",
+      fn() {
+        gparsec.input("a,b)", Pair("", ""))
+        |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
+        |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
+        |> gparsec.token(",", gparsec.ignore_token)
+        |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
+        |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 4), Pair("a", "b")))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      gparsec.input("(a,b)", Pair("", ""))
+      |> gparsec.token("what's going on here ...", gparsec.ignore_token)
+      |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
+      |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
+      |> gparsec.token(",", gparsec.ignore_token)
+      |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
+      |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        ["what's going on here ..."],
+        "(",
+        ParserPosition(0, 0),
+      ))
+    }),
+  ])
+}
+
+type Pair {
+  Pair(left: String, right: String)
+}

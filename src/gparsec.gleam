@@ -24,6 +24,9 @@ pub type ParserResult(a) =
 pub type ParserMapperCallback(a, b) =
   fn(a, b) -> a
 
+pub type ParserCombinatorCallback(a) =
+  fn(ParserResult(a)) -> ParserResult(a)
+
 pub fn ignore_token(value: a, _: String) -> a {
   value
 }
@@ -51,6 +54,16 @@ pub fn token(
     token_parser.pos,
     to(previous_parser.value, token_parser.value),
   ))
+}
+
+pub fn optional(
+  prev: ParserResult(a),
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(a) {
+  case parser(prev) {
+    Error(_) -> prev
+    Ok(parser) -> Ok(parser)
+  }
 }
 
 fn token_internal(
