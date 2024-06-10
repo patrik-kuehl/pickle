@@ -24,7 +24,10 @@ pub type ParserResult(a) =
 pub type ParserMapperCallback(a, b) =
   fn(a, b) -> a
 
-pub fn ignore_tokens(value: a, _: String) -> a {
+pub type ParserCombinatorCallback(a) =
+  fn(ParserResult(a)) -> ParserResult(a)
+
+pub fn ignore_token(value: a, _: String) -> a {
   value
 }
 
@@ -32,14 +35,14 @@ pub fn input(tokens: String, initial_value: a) -> ParserResult(a) {
   Ok(Parser(tokens |> string.split(""), ParserPosition(0, 0), initial_value))
 }
 
-pub fn tokens(
+pub fn token(
   prev: ParserResult(a),
   tokens: String,
   to: ParserMapperCallback(a, String),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
-  use token_parser <- result.try(tokens_internal(
+  use token_parser <- result.try(token_internal(
     Ok(Parser(previous_parser.tokens, previous_parser.pos, "")),
     tokens |> string.split(""),
     "",
@@ -53,7 +56,17 @@ pub fn tokens(
   ))
 }
 
-fn tokens_internal(
+pub fn optional(
+  prev: ParserResult(a),
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(a) {
+  case parser(prev) {
+    Error(_) -> prev
+    Ok(parser) -> Ok(parser)
+  }
+}
+
+fn token_internal(
   prev: ParserResult(String),
   unprocessed_tokens: List(String),
   processed_tokens: String,
@@ -63,7 +76,7 @@ fn tokens_internal(
     [] -> prev
     [c, ..rest] ->
       single_token(prev, c, processed_tokens, expected_tokens)
-      |> tokens_internal(rest, processed_tokens <> c, expected_tokens)
+      |> token_internal(rest, processed_tokens <> c, expected_tokens)
   }
 }
 
