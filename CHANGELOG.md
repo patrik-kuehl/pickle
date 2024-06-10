@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Features
 
+-   Implemented the `tokens` function.
 -   Implemented the `input` function.
 
 <!-- scaffolded by git-cliff -->

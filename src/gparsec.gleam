@@ -1,3 +1,4 @@
+import gleam/result
 import gleam/string
 
 pub type ParserPosition {
@@ -20,6 +21,83 @@ pub type ParserFailure {
 pub type ParserResult(a) =
   Result(Parser(a), ParserFailure)
 
-pub fn input(tokens tokens: String, initial_value value: a) -> ParserResult(a) {
-  Ok(Parser(tokens |> string.split(""), ParserPosition(0, 0), value))
+pub type ParserMapperCallback(a, b) =
+  fn(a, b) -> a
+
+pub fn ignore_tokens(value: a, _: String) -> a {
+  value
+}
+
+pub fn input(tokens: String, initial_value: a) -> ParserResult(a) {
+  Ok(Parser(tokens |> string.split(""), ParserPosition(0, 0), initial_value))
+}
+
+pub fn tokens(
+  prev: ParserResult(a),
+  tokens: String,
+  to: ParserMapperCallback(a, String),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use token_parser <- result.try(tokens_internal(
+    Ok(Parser(previous_parser.tokens, previous_parser.pos, "")),
+    tokens |> string.split(""),
+    "",
+    tokens,
+  ))
+
+  Ok(Parser(
+    token_parser.tokens,
+    token_parser.pos,
+    to(previous_parser.value, token_parser.value),
+  ))
+}
+
+fn tokens_internal(
+  prev: ParserResult(String),
+  unprocessed_tokens: List(String),
+  processed_tokens: String,
+  expected_tokens: String,
+) -> ParserResult(String) {
+  case unprocessed_tokens {
+    [] -> prev
+    [c, ..rest] ->
+      single_token(prev, c, processed_tokens, expected_tokens)
+      |> tokens_internal(rest, processed_tokens <> c, expected_tokens)
+  }
+}
+
+fn single_token(
+  prev: ParserResult(String),
+  token: String,
+  processed_tokens: String,
+  expected_tokens: String,
+) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  case parser.tokens {
+    [c, ..rest] if c == token ->
+      Ok(Parser(
+        rest,
+        increment_parser_position(parser.pos, c),
+        parser.value <> c,
+      ))
+    [c, ..] ->
+      Error(UnexpectedToken(
+        [expected_tokens],
+        processed_tokens <> c,
+        parser.pos,
+      ))
+    [] -> Error(UnexpectedEof([expected_tokens], parser.pos))
+  }
+}
+
+fn increment_parser_position(
+  prev: ParserPosition,
+  recent_token: String,
+) -> ParserPosition {
+  case recent_token {
+    "\n" -> ParserPosition(prev.row + 1, 0)
+    _ -> ParserPosition(prev.row, prev.col + 1)
+  }
 }
