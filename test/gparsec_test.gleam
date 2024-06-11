@@ -51,13 +51,13 @@ pub fn token_tests() {
       gparsec.input("abcd", "")
       |> gparsec.token("abdz", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken(["abdz"], "abc", ParserPosition(0, 2)))
+      |> expect.to_equal(UnexpectedToken("abdz", "abc", ParserPosition(0, 2)))
     }),
     it("returns an error when encountering an unexpected EOF", fn() {
       gparsec.input("abc", "")
       |> gparsec.token("abcd", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(["abcd"], ParserPosition(0, 3)))
+      |> expect.to_equal(UnexpectedEof("abcd", ParserPosition(0, 3)))
     }),
   ])
 }
@@ -100,7 +100,7 @@ pub fn optional_tests() {
       |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        ["what's going on here ..."],
+        "what's going on here ...",
         "(",
         ParserPosition(0, 0),
       ))
@@ -136,11 +136,90 @@ pub fn many_tests() {
       |> gparsec.token("ab", fn(value, token) { value <> token })
       |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken(["ab"], "aa", ParserPosition(0, 1)))
+      |> expect.to_equal(UnexpectedToken("ab", "aa", ParserPosition(0, 1)))
+    }),
+  ])
+}
+
+pub fn integer_tests() {
+  describe("gparsec/integer", [
+    it("returns a parser that parsed a positive integer", fn() {
+      gparsec.input("250", 0)
+      |> gparsec.integer(fn(_, integer) { integer })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(0, 3), 250))
+    }),
+    it("returns a parser that parsed a negative integer", fn() {
+      gparsec.input("-75", 0)
+      |> gparsec.integer(fn(_, integer) { integer })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(0, 3), -75))
+    }),
+    it(
+      "returns a parser that parsed an integer and ignored non-digit tokens afterwards",
+      fn() {
+        gparsec.input("5005abc", 0)
+        |> gparsec.integer(fn(_, integer) { integer })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 4), 5005))
+      },
+    ),
+    it("returns a parser that parsed multiple integers", fn() {
+      gparsec.input("[20,72]", Point(0, 0))
+      |> gparsec.token("[", gparsec.ignore_token)
+      |> gparsec.integer(fn(value, integer) { Point(..value, x: integer) })
+      |> gparsec.token(",", gparsec.ignore_token)
+      |> gparsec.integer(fn(value, integer) { Point(..value, y: integer) })
+      |> gparsec.token("]", gparsec.ignore_token)
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(0, 7), Point(20, 72)))
+    }),
+    it("returns a parser that ignored the last integer", fn() {
+      gparsec.input("100;200;400", 0)
+      |> gparsec.integer(fn(value, integer) { value + integer })
+      |> gparsec.token(";", gparsec.ignore_token)
+      |> gparsec.integer(fn(value, integer) { value + integer })
+      |> gparsec.token(";", gparsec.ignore_token)
+      |> gparsec.integer(gparsec.ignore_integer)
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(0, 11), 300))
+    }),
+    it("returns an error when being provided an invalid integer", fn() {
+      gparsec.input("not_an_integer", 0)
+      |> gparsec.integer(fn(_, integer) { integer })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken("<integer>", "n", ParserPosition(0, 0)))
+    }),
+    it(
+      "returns an error when being provided no further tokens after the sign",
+      fn() {
+        gparsec.input("abc-", 0)
+        |> gparsec.token("abc", gparsec.ignore_token)
+        |> gparsec.integer(fn(_, integer) { integer })
+        |> expect.to_be_error()
+        |> expect.to_equal(UnexpectedEof("<integer>", ParserPosition(0, 4)))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      gparsec.input("abc2000", 0)
+      |> gparsec.token("abd", gparsec.ignore_token)
+      |> gparsec.integer(fn(_, integer) { integer })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken("abd", "abc", ParserPosition(0, 2)))
+    }),
+    it("returns an error when being provided no tokens", fn() {
+      gparsec.input("", 0)
+      |> gparsec.integer(fn(_, integer) { integer })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedEof("<integer>", ParserPosition(0, 0)))
     }),
   ])
 }
 
 type Pair {
   Pair(left: String, right: String)
+}
+
+type Point {
+  Point(x: Int, y: Int)
 }
