@@ -48,11 +48,9 @@ pub fn token(
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
-  use token_parser <- result.try(token_internal(
+  use token_parser <- result.try(do_token(
     Ok(Parser(previous_parser.tokens, previous_parser.pos, "")),
     token |> string.split(""),
-    "",
-    token,
   ))
 
   Ok(Parser(
@@ -101,7 +99,7 @@ pub fn integer(
       || c == "8"
       || c == "9"
     ->
-      integer_internal(
+      do_integer(
         Ok(Parser(rest, increment_parser_position(previous_parser.pos, c), c)),
       )
     ["-", ..rest] ->
@@ -112,7 +110,7 @@ pub fn integer(
             increment_parser_position(previous_parser.pos, "-"),
           ))
         tokens ->
-          integer_internal(
+          do_integer(
             Ok(Parser(
               tokens,
               increment_parser_position(previous_parser.pos, "-"),
@@ -140,57 +138,56 @@ pub fn integer(
   }
 }
 
-fn token_internal(
+fn do_token(
   prev: ParserResult(String),
-  unprocessed_tokens: List(String),
-  processed_tokens: String,
-  expected_token: String,
-) -> ParserResult(String) {
-  case unprocessed_tokens {
-    [] -> prev
-    [c, ..rest] ->
-      single_token(prev, c, processed_tokens, expected_token)
-      |> token_internal(rest, processed_tokens <> c, expected_token)
-  }
-}
-
-fn single_token(
-  prev: ParserResult(String),
-  token: String,
-  processed_tokens: String,
-  expected_token: String,
+  expected_tokens: List(String),
 ) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  case parser.tokens {
-    [] -> Error(UnexpectedEof(expected_token, parser.pos))
-    [c, ..] if c != token ->
-      Error(UnexpectedToken(expected_token, processed_tokens <> c, parser.pos))
-    [c, ..rest] ->
-      Ok(Parser(
-        rest,
-        increment_parser_position(parser.pos, c),
-        parser.value <> c,
-      ))
+  case expected_tokens {
+    [] -> prev
+    [expected_token, ..expected_rest] ->
+      case parser.tokens {
+        [] ->
+          Error(UnexpectedEof(
+            parser.value <> string.join(expected_tokens, ""),
+            parser.pos,
+          ))
+        [actual_token, ..] if expected_token != actual_token ->
+          Error(UnexpectedToken(
+            parser.value <> string.join(expected_tokens, ""),
+            parser.value <> actual_token,
+            parser.pos,
+          ))
+        [actual_token, ..actual_rest] ->
+          do_token(
+            Ok(Parser(
+              actual_rest,
+              increment_parser_position(parser.pos, actual_token),
+              parser.value <> actual_token,
+            )),
+            expected_rest,
+          )
+      }
   }
 }
 
-fn integer_internal(prev: ParserResult(String)) -> ParserResult(String) {
+fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
   let assert Ok(pattern) = regex.from_string("^[0-9]$")
 
   case parser.tokens {
     [] -> prev
-    [c, ..rest] ->
-      case regex.check(pattern, c) {
+    [token, ..rest] ->
+      case regex.check(pattern, token) {
         False -> prev
         True ->
-          integer_internal(
+          do_integer(
             Ok(Parser(
               rest,
-              increment_parser_position(parser.pos, c),
-              parser.value <> c,
+              increment_parser_position(parser.pos, token),
+              parser.value <> token,
             )),
           )
       }
