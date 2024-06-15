@@ -162,6 +162,14 @@ pub fn skip_until(prev: ParserResult(a), token: String) -> ParserResult(a) {
   do_skip_until(prev, token, token |> string.split(""))
 }
 
+pub fn repeat(
+  prev: ParserResult(List(a)),
+  initial_value: a,
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(List(a)) {
+  do_repeat(prev, initial_value, parser)
+}
+
 fn do_token(
   prev: ParserResult(String),
   expected_tokens: List(String),
@@ -303,6 +311,33 @@ fn do_skip_until(
             expected_tokens,
           )
       }
+  }
+}
+
+fn do_repeat(
+  prev: ParserResult(List(a)),
+  initial_value: a,
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(List(a)) {
+  use previous_parser <- result.try(prev)
+
+  case
+    parser(
+      Ok(Parser(previous_parser.tokens, previous_parser.pos, initial_value)),
+    )
+  {
+    Error(_) -> prev
+    Ok(repeat_parser) ->
+      do_repeat(
+        Ok(
+          Parser(repeat_parser.tokens, repeat_parser.pos, [
+            repeat_parser.value,
+            ..previous_parser.value
+          ]),
+        ),
+        initial_value,
+        parser,
+      )
   }
 }
 
