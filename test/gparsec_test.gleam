@@ -1,4 +1,7 @@
-import gparsec.{Parser, ParserPosition, UnexpectedEof, UnexpectedToken}
+import gparsec.{
+  type ParserMapperCallback, type ParserResult, Parser, ParserPosition,
+  UnexpectedEof, UnexpectedToken,
+}
 import startest.{describe, it}
 import startest/expect
 
@@ -216,10 +219,79 @@ pub fn integer_tests() {
   ])
 }
 
+pub fn until_tests() {
+  describe("gparsec/until", [
+    it(
+      "returns a parser that parsed all tokens until finding the equal sign",
+      fn() {
+        gparsec.input("let test = \"value\";", "")
+        |> gparsec.until("=", fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["=", " ", "\"", "v", "a", "l", "u", "e", "\"", ";"],
+          ParserPosition(0, 9),
+          "let test ",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that parsed all tokens until finding the EQUALS word",
+      fn() {
+        gparsec.input("var test EQUALS something", "")
+        |> gparsec.until("EQUALS", fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "E", "Q", "U", "A", "L", "S", " ", "s", "o", "m", "e", "t", "h", "i",
+            "n", "g",
+          ],
+          ParserPosition(0, 9),
+          "var test ",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that parsed all tokens until finding the equal sign multiple times",
+      fn() {
+        gparsec.input("let test = \"value\";\nlet test2 = \"value2\";", [])
+        |> gparsec.many(until_including_token(
+          _,
+          "=",
+          fn(value, token) { [token, ..value] },
+        ))
+        |> expect.to_be_ok()
+        |> expect.to_equal(
+          Parser(
+            [" ", "\"", "v", "a", "l", "u", "e", "2", "\"", ";"],
+            ParserPosition(1, 11),
+            [" \"value\";\nlet test2 ", "let test "],
+          ),
+        )
+      },
+    ),
+    it("returns an error when the until token could not be found", fn() {
+      gparsec.input("let test value;", "")
+      |> gparsec.until("=", fn(value, token) { value <> token })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedEof("=", ParserPosition(0, 15)))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }
 
 type Point {
   Point(x: Int, y: Int)
+}
+
+fn until_including_token(
+  prev: ParserResult(a),
+  token: String,
+  to: ParserMapperCallback(a, String),
+) -> ParserResult(a) {
+  prev
+  |> gparsec.until(token, to)
+  |> gparsec.token(token, gparsec.ignore_token)
 }
