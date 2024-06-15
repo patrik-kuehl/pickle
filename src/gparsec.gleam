@@ -158,6 +158,10 @@ pub fn until(
   ))
 }
 
+pub fn skip_until(prev: ParserResult(a), token: String) -> ParserResult(a) {
+  do_skip_until(prev, token, token |> string.split(""))
+}
+
 fn do_token(
   prev: ParserResult(String),
   expected_tokens: List(String),
@@ -250,6 +254,50 @@ fn do_until(
               actual_rest,
               increment_parser_position(parser.pos, actual_token),
               parser.value <> actual_token,
+            )),
+            until_token,
+            expected_tokens,
+          )
+      }
+  }
+}
+
+fn do_skip_until(
+  prev: ParserResult(a),
+  until_token: String,
+  expected_tokens: List(String),
+) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  case expected_tokens {
+    [] -> prev
+    [expected_token, ..] ->
+      case parser.tokens {
+        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [actual_token, ..actual_rest] if actual_token == expected_token ->
+          case
+            parser.tokens
+            |> string.join("")
+            |> string.starts_with(until_token)
+          {
+            True -> prev
+            False ->
+              do_skip_until(
+                Ok(Parser(
+                  actual_rest,
+                  increment_parser_position(parser.pos, actual_token),
+                  parser.value,
+                )),
+                until_token,
+                expected_tokens,
+              )
+          }
+        [actual_token, ..actual_rest] ->
+          do_skip_until(
+            Ok(Parser(
+              actual_rest,
+              increment_parser_position(parser.pos, actual_token),
+              parser.value,
             )),
             until_token,
             expected_tokens,
