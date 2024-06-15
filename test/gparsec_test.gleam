@@ -278,6 +278,46 @@ pub fn until_tests() {
   ])
 }
 
+pub fn skip_until_tests() {
+  describe("gparsec/skip_until", [
+    it(
+      "returns a parser that skipped all tokens until finding the equal sign",
+      fn() {
+        gparsec.input("let test = \"value\";", "")
+        |> gparsec.skip_until("=")
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["=", " ", "\"", "v", "a", "l", "u", "e", "\"", ";"],
+          ParserPosition(0, 9),
+          "",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that skipped all tokens until finding the EQUALS word",
+      fn() {
+        gparsec.input("var test EQUALS something", "")
+        |> gparsec.skip_until("EQUALS")
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "E", "Q", "U", "A", "L", "S", " ", "s", "o", "m", "e", "t", "h", "i",
+            "n", "g",
+          ],
+          ParserPosition(0, 9),
+          "",
+        ))
+      },
+    ),
+    it("returns an error when the until token could not be found", fn() {
+      gparsec.input("let test value;", "")
+      |> gparsec.skip_until("=")
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedEof("=", ParserPosition(0, 15)))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }
