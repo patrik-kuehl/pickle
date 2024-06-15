@@ -138,6 +138,26 @@ pub fn integer(
   }
 }
 
+pub fn until(
+  prev: ParserResult(a),
+  token: String,
+  to: ParserMapperCallback(a, String),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use until_parser <- result.try(do_until(
+    Ok(Parser(previous_parser.tokens, previous_parser.pos, "")),
+    token,
+    token |> string.split(""),
+  ))
+
+  Ok(Parser(
+    until_parser.tokens,
+    until_parser.pos,
+    to(previous_parser.value, until_parser.value),
+  ))
+}
+
 fn do_token(
   prev: ParserResult(String),
   expected_tokens: List(String),
@@ -189,6 +209,50 @@ fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
               increment_parser_position(parser.pos, token),
               parser.value <> token,
             )),
+          )
+      }
+  }
+}
+
+fn do_until(
+  prev: ParserResult(String),
+  until_token: String,
+  expected_tokens: List(String),
+) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  case expected_tokens {
+    [] -> prev
+    [expected_token, ..] ->
+      case parser.tokens {
+        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [actual_token, ..actual_rest] if actual_token == expected_token ->
+          case
+            parser.tokens
+            |> string.join("")
+            |> string.starts_with(until_token)
+          {
+            True -> prev
+            False ->
+              do_until(
+                Ok(Parser(
+                  actual_rest,
+                  increment_parser_position(parser.pos, actual_token),
+                  parser.value <> actual_token,
+                )),
+                until_token,
+                expected_tokens,
+              )
+          }
+        [actual_token, ..actual_rest] ->
+          do_until(
+            Ok(Parser(
+              actual_rest,
+              increment_parser_position(parser.pos, actual_token),
+              parser.value <> actual_token,
+            )),
+            until_token,
+            expected_tokens,
           )
       }
   }
