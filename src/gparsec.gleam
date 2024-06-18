@@ -98,38 +98,42 @@ pub fn integer(
   use previous_parser <- result.try(prev)
 
   use integer_parser <- result.try(case previous_parser.tokens {
-    [c, ..rest]
-      if c == "0"
-      || c == "1"
-      || c == "2"
-      || c == "3"
-      || c == "4"
-      || c == "5"
-      || c == "6"
-      || c == "7"
-      || c == "8"
-      || c == "9"
+    [token, ..rest]
+      if token == "0"
+      || token == "1"
+      || token == "2"
+      || token == "3"
+      || token == "4"
+      || token == "5"
+      || token == "6"
+      || token == "7"
+      || token == "8"
+      || token == "9"
     ->
       do_integer(
-        Ok(Parser(rest, increment_parser_position(previous_parser.pos, c), c)),
+        Ok(Parser(
+          rest,
+          increment_parser_position(previous_parser.pos, token),
+          token,
+        )),
       )
-    ["-", ..rest] ->
+    [token, ..rest] if token == "+" || token == "-" ->
       case rest {
         [] ->
           Error(UnexpectedEof(
             Digit,
-            increment_parser_position(previous_parser.pos, "-"),
+            increment_parser_position(previous_parser.pos, token),
           ))
         tokens ->
           do_integer(
             Ok(Parser(
               tokens,
-              increment_parser_position(previous_parser.pos, "-"),
-              "-",
+              increment_parser_position(previous_parser.pos, token),
+              token,
             )),
           )
       }
-    [c, ..] -> Error(UnexpectedToken(Digit, c, previous_parser.pos))
+    [token, ..] -> Error(UnexpectedToken(Digit, token, previous_parser.pos))
     [] -> Error(UnexpectedEof(Digit, previous_parser.pos))
   })
 
@@ -173,19 +177,19 @@ pub fn float(
         )),
         False,
       )
-    ["-", ..rest] ->
+    [token, ..rest] if token == "+" || token == "-" ->
       case rest {
         [] ->
           Error(UnexpectedEof(
             DigitOrDecimalPoint,
-            increment_parser_position(previous_parser.pos, "-"),
+            increment_parser_position(previous_parser.pos, token),
           ))
         tokens ->
           do_float(
             Ok(Parser(
               tokens,
-              increment_parser_position(previous_parser.pos, "-"),
-              "-",
+              increment_parser_position(previous_parser.pos, token),
+              token,
             )),
             False,
           )

@@ -160,6 +160,15 @@ pub fn integer_tests() {
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 3), 250))
     }),
+    it(
+      "returns a parser that parsed a positive integer with an explicit sign",
+      fn() {
+        gparsec.input("+120", 0)
+        |> gparsec.integer(fn(_, integer) { integer })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 4), 120))
+      },
+    ),
     it("returns a parser that parsed a negative integer", fn() {
       gparsec.input("-75", 0)
       |> gparsec.integer(fn(_, integer) { integer })
@@ -239,6 +248,15 @@ pub fn float_tests() {
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 5), 250.0))
     }),
+    it(
+      "returns a parser that parsed a positive float with an explicit sign",
+      fn() {
+        gparsec.input("+20.4", 0.0)
+        |> gparsec.float(fn(_, float) { float })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 5), 20.4))
+      },
+    ),
     it("returns a parser that parsed a negative float", fn() {
       gparsec.input("-75.5", 0.0)
       |> gparsec.float(fn(_, float) { float })
@@ -277,7 +295,7 @@ pub fn float_tests() {
       },
     ),
     it(
-      "returns a parser that parsed a float and ignored everything after the second fraction token",
+      "returns a parser that parsed a float and ignored everything after the second decimal point",
       fn() {
         gparsec.input("25.5.1", 0.0)
         |> gparsec.float(fn(_, float) { float })
