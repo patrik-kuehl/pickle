@@ -1,3 +1,4 @@
+import gleam/float
 import gleam/int
 import gleam/regex
 import gleam/result
@@ -11,13 +12,19 @@ pub type Parser(a) {
   Parser(tokens: List(String), pos: ParserPosition, value: a)
 }
 
+pub type ExpectedToken {
+  Token(String)
+  Digit
+  DigitOrDecimalPoint
+}
+
 pub type ParserFailure {
   UnexpectedToken(
-    expected_token: String,
+    expected_token: ExpectedToken,
     actual_token: String,
     pos: ParserPosition,
   )
-  UnexpectedEof(expected_token: String, pos: ParserPosition)
+  UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
 }
 
 pub type ParserResult(a) =
@@ -34,6 +41,10 @@ pub fn ignore_token(value: a, _: String) -> a {
 }
 
 pub fn ignore_integer(value: a, _: Int) -> a {
+  value
+}
+
+pub fn ignore_float(value: a, _: Float) -> a {
   value
 }
 
@@ -87,39 +98,43 @@ pub fn integer(
   use previous_parser <- result.try(prev)
 
   use integer_parser <- result.try(case previous_parser.tokens {
-    [c, ..rest]
-      if c == "0"
-      || c == "1"
-      || c == "2"
-      || c == "3"
-      || c == "4"
-      || c == "5"
-      || c == "6"
-      || c == "7"
-      || c == "8"
-      || c == "9"
+    [token, ..rest]
+      if token == "0"
+      || token == "1"
+      || token == "2"
+      || token == "3"
+      || token == "4"
+      || token == "5"
+      || token == "6"
+      || token == "7"
+      || token == "8"
+      || token == "9"
     ->
       do_integer(
-        Ok(Parser(rest, increment_parser_position(previous_parser.pos, c), c)),
+        Ok(Parser(
+          rest,
+          increment_parser_position(previous_parser.pos, token),
+          token,
+        )),
       )
-    ["-", ..rest] ->
+    [token, ..rest] if token == "+" || token == "-" ->
       case rest {
         [] ->
           Error(UnexpectedEof(
-            "<integer>",
-            increment_parser_position(previous_parser.pos, "-"),
+            Digit,
+            increment_parser_position(previous_parser.pos, token),
           ))
         tokens ->
           do_integer(
             Ok(Parser(
               tokens,
-              increment_parser_position(previous_parser.pos, "-"),
-              "-",
+              increment_parser_position(previous_parser.pos, token),
+              token,
             )),
           )
       }
-    [c, ..] -> Error(UnexpectedToken("<integer>", c, previous_parser.pos))
-    [] -> Error(UnexpectedEof("<integer>", previous_parser.pos))
+    [token, ..] -> Error(UnexpectedToken(Digit, token, previous_parser.pos))
+    [] -> Error(UnexpectedEof(Digit, previous_parser.pos))
   })
 
   case int.parse(integer_parser.value) {
@@ -130,11 +145,73 @@ pub fn integer(
         to(previous_parser.value, integer),
       ))
     Error(_) ->
-      Error(UnexpectedToken(
-        "<integer>",
-        integer_parser.value,
-        integer_parser.pos,
+      Error(UnexpectedToken(Digit, integer_parser.value, integer_parser.pos))
+  }
+}
+
+pub fn float(
+  prev: ParserResult(a),
+  to: ParserMapperCallback(a, Float),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use float_parser <- result.try(case previous_parser.tokens {
+    [token, ..rest]
+      if token == "0"
+      || token == "1"
+      || token == "2"
+      || token == "3"
+      || token == "4"
+      || token == "5"
+      || token == "6"
+      || token == "7"
+      || token == "8"
+      || token == "9"
+      || token == "."
+    ->
+      do_float(
+        Ok(Parser(
+          rest,
+          increment_parser_position(previous_parser.pos, token),
+          token,
+        )),
+        False,
+      )
+    [token, ..rest] if token == "+" || token == "-" ->
+      case rest {
+        [] ->
+          Error(UnexpectedEof(
+            DigitOrDecimalPoint,
+            increment_parser_position(previous_parser.pos, token),
+          ))
+        tokens ->
+          do_float(
+            Ok(Parser(
+              tokens,
+              increment_parser_position(previous_parser.pos, token),
+              token,
+            )),
+            False,
+          )
+      }
+    [token, ..] ->
+      Error(UnexpectedToken(DigitOrDecimalPoint, token, previous_parser.pos))
+    [] -> Error(UnexpectedEof(DigitOrDecimalPoint, previous_parser.pos))
+  })
+
+  case
+    float_parser.value
+    |> add_integral_part_to_string_float_value()
+    |> float.parse()
+  {
+    Ok(float) ->
+      Ok(Parser(
+        float_parser.tokens,
+        float_parser.pos,
+        to(previous_parser.value, float),
       ))
+    Error(_) ->
+      Error(UnexpectedToken(Digit, float_parser.value, float_parser.pos))
   }
 }
 
@@ -182,12 +259,12 @@ fn do_token(
       case parser.tokens {
         [] ->
           Error(UnexpectedEof(
-            parser.value <> string.join(expected_tokens, ""),
+            Token(parser.value <> string.join(expected_tokens, "")),
             parser.pos,
           ))
         [actual_token, ..] if expected_token != actual_token ->
           Error(UnexpectedToken(
-            parser.value <> string.join(expected_tokens, ""),
+            Token(parser.value <> string.join(expected_tokens, "")),
             parser.value <> actual_token,
             parser.pos,
           ))
@@ -226,6 +303,37 @@ fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
   }
 }
 
+fn do_float(
+  prev: ParserResult(String),
+  after_fraction: Bool,
+) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  let assert Ok(pattern) = regex.from_string("^[0-9.]$")
+
+  case parser.tokens {
+    [] -> prev
+    [".", ..] if after_fraction -> prev
+    [token, ..rest] ->
+      case regex.check(pattern, token) {
+        False -> prev
+        True ->
+          do_float(
+            Ok(Parser(
+              rest,
+              increment_parser_position(parser.pos, token),
+              parser.value <> token,
+            )),
+            case token {
+              "." -> True
+              _ if after_fraction -> True
+              _ -> False
+            },
+          )
+      }
+  }
+}
+
 fn do_until(
   prev: ParserResult(String),
   until_token: String,
@@ -237,7 +345,7 @@ fn do_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -281,7 +389,7 @@ fn do_skip_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -338,6 +446,18 @@ fn do_repeat(
         initial_value,
         parser,
       )
+  }
+}
+
+fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
+  case float_as_string |> string.split("") {
+    [".", ..rest] -> "0." <> string.join(rest, "")
+    ["-", ..rest] ->
+      case rest {
+        [".", ..fraction] -> "-0." <> string.join(fraction, "")
+        float -> "-" <> string.join(float, "")
+      }
+    float -> float |> string.join("")
   }
 }
 
