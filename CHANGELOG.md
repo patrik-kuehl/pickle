@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Features
 
+-   Implemented the `float` function.
 -   Implemented the `repeat` function.
 -   Implemented the `skip_until` function.
 -   Implemented the `until` function.
