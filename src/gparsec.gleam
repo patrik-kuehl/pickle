@@ -12,13 +12,19 @@ pub type Parser(a) {
   Parser(tokens: List(String), pos: ParserPosition, value: a)
 }
 
+pub type ExpectedToken {
+  Token(String)
+  Digit
+  DigitOrDecimalPoint
+}
+
 pub type ParserFailure {
   UnexpectedToken(
-    expected_token: String,
+    expected_token: ExpectedToken,
     actual_token: String,
     pos: ParserPosition,
   )
-  UnexpectedEof(expected_token: String, pos: ParserPosition)
+  UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
 }
 
 pub type ParserResult(a) =
@@ -111,7 +117,7 @@ pub fn integer(
       case rest {
         [] ->
           Error(UnexpectedEof(
-            "<integer>",
+            Digit,
             increment_parser_position(previous_parser.pos, "-"),
           ))
         tokens ->
@@ -123,8 +129,8 @@ pub fn integer(
             )),
           )
       }
-    [c, ..] -> Error(UnexpectedToken("<integer>", c, previous_parser.pos))
-    [] -> Error(UnexpectedEof("<integer>", previous_parser.pos))
+    [c, ..] -> Error(UnexpectedToken(Digit, c, previous_parser.pos))
+    [] -> Error(UnexpectedEof(Digit, previous_parser.pos))
   })
 
   case int.parse(integer_parser.value) {
@@ -135,11 +141,7 @@ pub fn integer(
         to(previous_parser.value, integer),
       ))
     Error(_) ->
-      Error(UnexpectedToken(
-        "<integer>",
-        integer_parser.value,
-        integer_parser.pos,
-      ))
+      Error(UnexpectedToken(Digit, integer_parser.value, integer_parser.pos))
   }
 }
 
@@ -175,7 +177,7 @@ pub fn float(
       case rest {
         [] ->
           Error(UnexpectedEof(
-            "<float>",
+            DigitOrDecimalPoint,
             increment_parser_position(previous_parser.pos, "-"),
           ))
         tokens ->
@@ -188,8 +190,9 @@ pub fn float(
             False,
           )
       }
-    [token, ..] -> Error(UnexpectedToken("<float>", token, previous_parser.pos))
-    [] -> Error(UnexpectedEof("<float>", previous_parser.pos))
+    [token, ..] ->
+      Error(UnexpectedToken(DigitOrDecimalPoint, token, previous_parser.pos))
+    [] -> Error(UnexpectedEof(DigitOrDecimalPoint, previous_parser.pos))
   })
 
   case
@@ -204,7 +207,7 @@ pub fn float(
         to(previous_parser.value, float),
       ))
     Error(_) ->
-      Error(UnexpectedToken("<float>", float_parser.value, float_parser.pos))
+      Error(UnexpectedToken(Digit, float_parser.value, float_parser.pos))
   }
 }
 
@@ -252,12 +255,12 @@ fn do_token(
       case parser.tokens {
         [] ->
           Error(UnexpectedEof(
-            parser.value <> string.join(expected_tokens, ""),
+            Token(parser.value <> string.join(expected_tokens, "")),
             parser.pos,
           ))
         [actual_token, ..] if expected_token != actual_token ->
           Error(UnexpectedToken(
-            parser.value <> string.join(expected_tokens, ""),
+            Token(parser.value <> string.join(expected_tokens, "")),
             parser.value <> actual_token,
             parser.pos,
           ))
@@ -338,7 +341,7 @@ fn do_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -382,7 +385,7 @@ fn do_skip_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(until_token, parser.pos))
+        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens

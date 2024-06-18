@@ -1,6 +1,6 @@
 import gparsec.{
-  type ParserMapperCallback, type ParserResult, Parser, ParserPosition,
-  UnexpectedEof, UnexpectedToken,
+  type ParserMapperCallback, type ParserResult, Digit, DigitOrDecimalPoint,
+  Parser, ParserPosition, Token, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -54,13 +54,17 @@ pub fn token_tests() {
       gparsec.input("abcd", "")
       |> gparsec.token("abdz", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("abdz", "abc", ParserPosition(0, 2)))
+      |> expect.to_equal(UnexpectedToken(
+        Token("abdz"),
+        "abc",
+        ParserPosition(0, 2),
+      ))
     }),
     it("returns an error when encountering an unexpected EOF", fn() {
       gparsec.input("abc", "")
       |> gparsec.token("abcd", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof("abcd", ParserPosition(0, 3)))
+      |> expect.to_equal(UnexpectedEof(Token("abcd"), ParserPosition(0, 3)))
     }),
   ])
 }
@@ -103,7 +107,7 @@ pub fn optional_tests() {
       |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        "what's going on here ...",
+        Token("what's going on here ..."),
         "(",
         ParserPosition(0, 0),
       ))
@@ -139,7 +143,11 @@ pub fn many_tests() {
       |> gparsec.token("ab", fn(value, token) { value <> token })
       |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("ab", "aa", ParserPosition(0, 1)))
+      |> expect.to_equal(UnexpectedToken(
+        Token("ab"),
+        "aa",
+        ParserPosition(0, 1),
+      ))
     }),
   ])
 }
@@ -191,7 +199,7 @@ pub fn integer_tests() {
       gparsec.input("not_an_integer", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("<integer>", "n", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedToken(Digit, "n", ParserPosition(0, 0)))
     }),
     it(
       "returns an error when being provided no further tokens after the sign",
@@ -200,7 +208,7 @@ pub fn integer_tests() {
         |> gparsec.token("abc", gparsec.ignore_token)
         |> gparsec.integer(fn(_, integer) { integer })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof("<integer>", ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 4)))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
@@ -208,13 +216,17 @@ pub fn integer_tests() {
       |> gparsec.token("abd", gparsec.ignore_token)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("abd", "abc", ParserPosition(0, 2)))
+      |> expect.to_equal(UnexpectedToken(
+        Token("abd"),
+        "abc",
+        ParserPosition(0, 2),
+      ))
     }),
     it("returns an error when being provided no tokens", fn() {
       gparsec.input("", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof("<integer>", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 0)))
     }),
   ])
 }
@@ -297,7 +309,11 @@ pub fn float_tests() {
       gparsec.input("not_a_float", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("<float>", "n", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedToken(
+        DigitOrDecimalPoint,
+        "n",
+        ParserPosition(0, 0),
+      ))
     }),
     it(
       "returns an error when being provided no further tokens after the sign",
@@ -306,7 +322,10 @@ pub fn float_tests() {
         |> gparsec.token("abc", gparsec.ignore_token)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof("<float>", ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(
+          DigitOrDecimalPoint,
+          ParserPosition(0, 4),
+        ))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
@@ -314,13 +333,20 @@ pub fn float_tests() {
       |> gparsec.token("abd", gparsec.ignore_token)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("abd", "abc", ParserPosition(0, 2)))
+      |> expect.to_equal(UnexpectedToken(
+        Token("abd"),
+        "abc",
+        ParserPosition(0, 2),
+      ))
     }),
     it("returns an error when being provided no tokens", fn() {
       gparsec.input("", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof("<float>", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(
+        DigitOrDecimalPoint,
+        ParserPosition(0, 0),
+      ))
     }),
   ])
 }
@@ -379,7 +405,7 @@ pub fn until_tests() {
       gparsec.input("let test value;", "")
       |> gparsec.until("=", fn(value, token) { value <> token })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof("=", ParserPosition(0, 15)))
+      |> expect.to_equal(UnexpectedEof(Token("="), ParserPosition(0, 15)))
     }),
   ])
 }
@@ -419,7 +445,7 @@ pub fn skip_until_tests() {
       gparsec.input("let test value;", "")
       |> gparsec.skip_until("=")
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof("=", ParserPosition(0, 15)))
+      |> expect.to_equal(UnexpectedEof(Token("="), ParserPosition(0, 15)))
     }),
   ])
 }
@@ -456,7 +482,11 @@ pub fn repeat_tests() {
         fn(value, token) { value <> token },
       ))
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken("ab", "aa", ParserPosition(0, 1)))
+      |> expect.to_equal(UnexpectedToken(
+        Token("ab"),
+        "aa",
+        ParserPosition(0, 1),
+      ))
     }),
   ])
 }
