@@ -1,3 +1,4 @@
+import gleam/float
 import gleam/int
 import gleam/regex
 import gleam/result
@@ -34,6 +35,10 @@ pub fn ignore_token(value: a, _: String) -> a {
 }
 
 pub fn ignore_integer(value: a, _: Int) -> a {
+  value
+}
+
+pub fn ignore_float(value: a, _: Float) -> a {
   value
 }
 
@@ -138,6 +143,71 @@ pub fn integer(
   }
 }
 
+pub fn float(
+  prev: ParserResult(a),
+  to: ParserMapperCallback(a, Float),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use float_parser <- result.try(case previous_parser.tokens {
+    [token, ..rest]
+      if token == "0"
+      || token == "1"
+      || token == "2"
+      || token == "3"
+      || token == "4"
+      || token == "5"
+      || token == "6"
+      || token == "7"
+      || token == "8"
+      || token == "9"
+      || token == "."
+    ->
+      do_float(
+        Ok(Parser(
+          rest,
+          increment_parser_position(previous_parser.pos, token),
+          token,
+        )),
+        False,
+      )
+    ["-", ..rest] ->
+      case rest {
+        [] ->
+          Error(UnexpectedEof(
+            "<float>",
+            increment_parser_position(previous_parser.pos, "-"),
+          ))
+        tokens ->
+          do_float(
+            Ok(Parser(
+              tokens,
+              increment_parser_position(previous_parser.pos, "-"),
+              "-",
+            )),
+            False,
+          )
+      }
+    [token, ..] -> Error(UnexpectedToken("<float>", token, previous_parser.pos))
+    [] -> Error(UnexpectedEof("<float>", previous_parser.pos))
+  })
+
+  case
+    float_parser.value
+    |> add_integral_part_to_string_float_value()
+    |> float.parse()
+  {
+    Ok(float) ->
+      Ok(Parser(
+        float_parser.tokens,
+        float_parser.pos,
+        to(previous_parser.value, float),
+      ))
+    Error(_) ->
+      Error(UnexpectedToken("<float>", float_parser.value, float_parser.pos))
+  }
+}
+
 pub fn until(
   prev: ParserResult(a),
   token: String,
@@ -221,6 +291,37 @@ fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
               increment_parser_position(parser.pos, token),
               parser.value <> token,
             )),
+          )
+      }
+  }
+}
+
+fn do_float(
+  prev: ParserResult(String),
+  after_fraction: Bool,
+) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  let assert Ok(pattern) = regex.from_string("^[0-9.]$")
+
+  case parser.tokens {
+    [] -> prev
+    [".", ..] if after_fraction -> prev
+    [token, ..rest] ->
+      case regex.check(pattern, token) {
+        False -> prev
+        True ->
+          do_float(
+            Ok(Parser(
+              rest,
+              increment_parser_position(parser.pos, token),
+              parser.value <> token,
+            )),
+            case token {
+              "." -> True
+              _ if after_fraction -> True
+              _ -> False
+            },
           )
       }
   }
@@ -338,6 +439,18 @@ fn do_repeat(
         initial_value,
         parser,
       )
+  }
+}
+
+fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
+  case float_as_string |> string.split("") {
+    [".", ..rest] -> "0." <> string.join(rest, "")
+    ["-", ..rest] ->
+      case rest {
+        [".", ..fraction] -> "-0." <> string.join(fraction, "")
+        float -> "-" <> string.join(float, "")
+      }
+    float -> float |> string.join("")
   }
 }
 
