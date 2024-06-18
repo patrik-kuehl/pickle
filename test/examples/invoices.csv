@@ -1,5 +1,5 @@
-Invoice No.;Recipient;Total
-1;John;250
-5;Maria;29
-8;Tim;120
-10;Jacob;9
+Invoice No.,Recipient,Total
+1,John,250.0
+5,Maria,29.90
+8,Tim,120.49
+10,Jacob,9.99
