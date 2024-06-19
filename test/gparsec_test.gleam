@@ -509,6 +509,57 @@ pub fn repeat_tests() {
   ])
 }
 
+pub fn whitespace_tests() {
+  describe("gparsec/whitespace", [
+    it("returns a parser that parsed whitespace tokens", fn() {
+      gparsec.input("\t \n", "")
+      |> gparsec.whitespace(fn(value, token) { value <> token })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(1, 0), "\t \n"))
+    }),
+    it(
+      "returns a parser that parsed whitespace tokens until encountering the first non-whitespace token",
+      fn() {
+        gparsec.input("\t \nabc", "")
+        |> gparsec.whitespace(fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["a", "b", "c"],
+          ParserPosition(1, 0),
+          "\t \n",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that parsed no whitespace tokens since its input started with non-whitespace tokens",
+      fn() {
+        gparsec.input("not_whitespace\t \n", "")
+        |> gparsec.whitespace(fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "n", "o", "t", "_", "w", "h", "i", "t", "e", "s", "p", "a", "c", "e",
+            "\t", " ", "\n",
+          ],
+          ParserPosition(0, 0),
+          "",
+        ))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      gparsec.input("ab\t \n", "")
+      |> gparsec.token("aa", fn(value, token) { value <> token })
+      |> gparsec.whitespace(fn(value, token) { value <> token })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Token("aa"),
+        "ab",
+        ParserPosition(0, 1),
+      ))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }

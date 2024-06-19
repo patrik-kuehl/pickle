@@ -247,6 +247,23 @@ pub fn repeat(
   do_repeat(prev, initial_value, parser)
 }
 
+pub fn whitespace(
+  prev: ParserResult(a),
+  to: ParserMapperCallback(a, String),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use whitespace_parser <- result.try(
+    do_whitespace(Ok(Parser(previous_parser.tokens, previous_parser.pos, ""))),
+  )
+
+  Ok(Parser(
+    whitespace_parser.tokens,
+    whitespace_parser.pos,
+    to(previous_parser.value, whitespace_parser.value),
+  ))
+}
+
 fn do_token(
   prev: ParserResult(String),
   expected_tokens: List(String),
@@ -446,6 +463,28 @@ fn do_repeat(
         initial_value,
         parser,
       )
+  }
+}
+
+fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  let assert Ok(pattern) = regex.from_string("^\\s$")
+
+  case parser.tokens {
+    [] -> prev
+    [token, ..rest] ->
+      case regex.check(pattern, token) {
+        False -> prev
+        True ->
+          do_whitespace(
+            Ok(Parser(
+              rest,
+              increment_parser_position(parser.pos, token),
+              parser.value <> token,
+            )),
+          )
+      }
   }
 }
 
