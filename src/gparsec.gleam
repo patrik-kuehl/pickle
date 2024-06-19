@@ -13,7 +13,7 @@ pub type Parser(a) {
 }
 
 pub type ExpectedToken {
-  Token(String)
+  Literal(String)
   Digit
   DigitOrDecimalPoint
 }
@@ -276,12 +276,12 @@ fn do_token(
       case parser.tokens {
         [] ->
           Error(UnexpectedEof(
-            Token(parser.value <> string.join(expected_tokens, "")),
+            Literal(parser.value <> string.join(expected_tokens, "")),
             parser.pos,
           ))
         [actual_token, ..] if expected_token != actual_token ->
           Error(UnexpectedToken(
-            Token(parser.value <> string.join(expected_tokens, "")),
+            Literal(parser.value <> string.join(expected_tokens, "")),
             parser.value <> actual_token,
             parser.pos,
           ))
@@ -362,7 +362,7 @@ fn do_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
+        [] -> Error(UnexpectedEof(Literal(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -406,7 +406,7 @@ fn do_skip_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
+        [] -> Error(UnexpectedEof(Literal(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
