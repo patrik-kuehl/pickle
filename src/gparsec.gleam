@@ -13,7 +13,7 @@ pub type Parser(a) {
 }
 
 pub type ExpectedToken {
-  Token(String)
+  Literal(String)
   Digit
   DigitOrDecimalPoint
 }
@@ -247,6 +247,23 @@ pub fn repeat(
   do_repeat(prev, initial_value, parser)
 }
 
+pub fn whitespace(
+  prev: ParserResult(a),
+  to: ParserMapperCallback(a, String),
+) -> ParserResult(a) {
+  use previous_parser <- result.try(prev)
+
+  use whitespace_parser <- result.try(
+    do_whitespace(Ok(Parser(previous_parser.tokens, previous_parser.pos, ""))),
+  )
+
+  Ok(Parser(
+    whitespace_parser.tokens,
+    whitespace_parser.pos,
+    to(previous_parser.value, whitespace_parser.value),
+  ))
+}
+
 fn do_token(
   prev: ParserResult(String),
   expected_tokens: List(String),
@@ -259,12 +276,12 @@ fn do_token(
       case parser.tokens {
         [] ->
           Error(UnexpectedEof(
-            Token(parser.value <> string.join(expected_tokens, "")),
+            Literal(parser.value <> string.join(expected_tokens, "")),
             parser.pos,
           ))
         [actual_token, ..] if expected_token != actual_token ->
           Error(UnexpectedToken(
-            Token(parser.value <> string.join(expected_tokens, "")),
+            Literal(parser.value <> string.join(expected_tokens, "")),
             parser.value <> actual_token,
             parser.pos,
           ))
@@ -345,7 +362,7 @@ fn do_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
+        [] -> Error(UnexpectedEof(Literal(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -389,7 +406,7 @@ fn do_skip_until(
     [] -> prev
     [expected_token, ..] ->
       case parser.tokens {
-        [] -> Error(UnexpectedEof(Token(until_token), parser.pos))
+        [] -> Error(UnexpectedEof(Literal(until_token), parser.pos))
         [actual_token, ..actual_rest] if actual_token == expected_token ->
           case
             parser.tokens
@@ -446,6 +463,28 @@ fn do_repeat(
         initial_value,
         parser,
       )
+  }
+}
+
+fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
+  use parser <- result.try(prev)
+
+  let assert Ok(pattern) = regex.from_string("^\\s$")
+
+  case parser.tokens {
+    [] -> prev
+    [token, ..rest] ->
+      case regex.check(pattern, token) {
+        False -> prev
+        True ->
+          do_whitespace(
+            Ok(Parser(
+              rest,
+              increment_parser_position(parser.pos, token),
+              parser.value <> token,
+            )),
+          )
+      }
   }
 }
 

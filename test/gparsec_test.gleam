@@ -1,6 +1,6 @@
 import gparsec.{
   type ParserMapperCallback, type ParserResult, Digit, DigitOrDecimalPoint,
-  Parser, ParserPosition, Token, UnexpectedEof, UnexpectedToken,
+  Literal, Parser, ParserPosition, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -55,7 +55,7 @@ pub fn token_tests() {
       |> gparsec.token("abdz", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("abdz"),
+        Literal("abdz"),
         "abc",
         ParserPosition(0, 2),
       ))
@@ -64,7 +64,7 @@ pub fn token_tests() {
       gparsec.input("abc", "")
       |> gparsec.token("abcd", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Token("abcd"), ParserPosition(0, 3)))
+      |> expect.to_equal(UnexpectedEof(Literal("abcd"), ParserPosition(0, 3)))
     }),
   ])
 }
@@ -107,7 +107,7 @@ pub fn optional_tests() {
       |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("what's going on here ..."),
+        Literal("what's going on here ..."),
         "(",
         ParserPosition(0, 0),
       ))
@@ -144,7 +144,7 @@ pub fn many_tests() {
       |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("ab"),
+        Literal("ab"),
         "aa",
         ParserPosition(0, 1),
       ))
@@ -226,7 +226,7 @@ pub fn integer_tests() {
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("abd"),
+        Literal("abd"),
         "abc",
         ParserPosition(0, 2),
       ))
@@ -352,7 +352,7 @@ pub fn float_tests() {
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("abd"),
+        Literal("abd"),
         "abc",
         ParserPosition(0, 2),
       ))
@@ -423,7 +423,7 @@ pub fn until_tests() {
       gparsec.input("let test value;", "")
       |> gparsec.until("=", fn(value, token) { value <> token })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Token("="), ParserPosition(0, 15)))
+      |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
     }),
   ])
 }
@@ -463,7 +463,7 @@ pub fn skip_until_tests() {
       gparsec.input("let test value;", "")
       |> gparsec.skip_until("=")
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Token("="), ParserPosition(0, 15)))
+      |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
     }),
   ])
 }
@@ -501,8 +501,59 @@ pub fn repeat_tests() {
       ))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Token("ab"),
+        Literal("ab"),
         "aa",
+        ParserPosition(0, 1),
+      ))
+    }),
+  ])
+}
+
+pub fn whitespace_tests() {
+  describe("gparsec/whitespace", [
+    it("returns a parser that parsed whitespace tokens", fn() {
+      gparsec.input("\t \n", "")
+      |> gparsec.whitespace(fn(value, token) { value <> token })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser([], ParserPosition(1, 0), "\t \n"))
+    }),
+    it(
+      "returns a parser that parsed whitespace tokens until encountering the first non-whitespace token",
+      fn() {
+        gparsec.input("\t \nabc", "")
+        |> gparsec.whitespace(fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["a", "b", "c"],
+          ParserPosition(1, 0),
+          "\t \n",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that parsed no whitespace tokens since its input started with non-whitespace tokens",
+      fn() {
+        gparsec.input("not_whitespace\t \n", "")
+        |> gparsec.whitespace(fn(value, token) { value <> token })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "n", "o", "t", "_", "w", "h", "i", "t", "e", "s", "p", "a", "c", "e",
+            "\t", " ", "\n",
+          ],
+          ParserPosition(0, 0),
+          "",
+        ))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      gparsec.input("ab\t \n", "")
+      |> gparsec.token("aa", fn(value, token) { value <> token })
+      |> gparsec.whitespace(fn(value, token) { value <> token })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("aa"),
+        "ab",
         ParserPosition(0, 1),
       ))
     }),
