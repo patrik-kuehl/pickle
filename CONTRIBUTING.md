@@ -7,21 +7,32 @@ Be it code, documentation, or whatever, every contribution helps this project.
 
 ## Code of Conduct
 
-GParsec follows the
+Pickle follows the
 [GitHub Community Code of Conduct](https://docs.github.com/en/site-policy/github-terms/github-community-code-of-conduct).
 By participating in this project, you agree to abide by its terms.
 
 ## License
 
 By contributing to this project, you agree that your contributions will be licensed under the
-[MIT license](https://github.com/patrik-kuehl/gparsec/blob/main/LICENSE.md).
+[MIT license](https://github.com/patrik-kuehl/pickle/blob/main/LICENSE.md).
 
 ## Code Style Guide
 
-GParsec doesn't come with a strict code style guide. Everything is checked by [Prettier](https://prettier.io/) and the
+Pickle doesn't come with a strict code style guide. Everything is checked by [Prettier](https://prettier.io/) and the
 formatter that comes with Gleam.
 
 You can run `npm run check` to check if everything is formatted accordingly and `npm run format` to run the formatters.
+
+To keep modules organized, you need to follow this structure:
+
+| Order |   Code Category   |
+| :---: | :---------------: |
+|   1   | public constants  |
+|   2   |   public types    |
+|   3   | public functions  |
+|   4   | private constants |
+|   5   |   private types   |
+|   6   | private functions |
 
 Apart from this, just keep your code readable. Remember, code is read more often than written. Everything else is just a
 matter of someone's personal taste, and the heavy usage of opinionated formatters just prevents such (useless)
@@ -50,24 +61,19 @@ You can refer to the [npm scripts](#npm-scripts) section to find out how to upda
 
 ### Setup
 
-|              Dependency               | Version  |
-| :-----------------------------------: | :------: |
-|      [Gleam](https://gleam.run/)      | \>= 1.1  |
-|        [Bun](https://bun.sh/)         | \>= 1.0  |
-|       [Deno](https://deno.com/)       | \>= 1.0  |
-|   [Node.js](https://nodejs.org/)\*    | \>= 20.0 |
-| [Docker](https://www.docker.com/)\*\* | \>= 24.0 |
-|   [act](https://nektosact.com/)\*\*   | \>= 0.2  |
+|            Dependency            | Version  |
+| :------------------------------: | :------: |
+|   [Gleam](https://gleam.run/)    | \>= 1.1  |
+|      [Bun](https://bun.sh/)      | \>= 1.0  |
+|    [Deno](https://deno.com/)     | \>= 1.0  |
+| [Node.js](https://nodejs.org/)\* | \>= 20.0 |
 
 You need to run `npm ci` to set up all required npm dependencies. This ensures
 [Husky](https://typicode.github.io/husky/) configures all Git hooks and that all npm scripts are executable.
 
-\* Although GParsec supports different JavaScript targets, Node.js will be required for local development to ensure the
+\* Although Pickle supports different JavaScript targets, Node.js will be required for local development to ensure the
 highest compatibility with the `package.json`. Bun and Deno are only required for executing tests to ensure
 compatibility.
-
-\*\* act and Docker are optional but recommended because act enables you to run the GitHub workflows of this project
-locally via Docker before even pushing anything to GitHub.
 
 ### npm Scripts
 

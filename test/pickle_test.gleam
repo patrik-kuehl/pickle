@@ -1,6 +1,7 @@
-import gparsec.{
-  type ParserMapperCallback, type ParserResult, Digit, DigitOrDecimalPoint,
-  Literal, Parser, ParserPosition, UnexpectedEof, UnexpectedToken,
+import gleam/string
+import pickle.{
+  type Parser, type ParserMapperCallback, type ParserResult, Literal, Parser,
+  ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -9,21 +10,31 @@ pub fn main() {
   startest.run(startest.default_config())
 }
 
-pub fn input_tests() {
-  describe("gparsec/input", [
-    it("returns a new parser", fn() {
-      gparsec.input("abc", [])
-      |> expect.to_be_ok()
-      |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 0), []))
+pub fn parse_tests() {
+  describe("pickle/parse", [
+    it(
+      "returns the parser value when the provided parser callback succeeded",
+      fn() {
+        pickle.parse("abc", "", fn(result) { result })
+        |> expect.to_be_ok()
+        |> expect.to_equal("")
+      },
+    ),
+    it("returns an error when the provided parser callback failed", fn() {
+      pickle.parse("abc", "", fn(_) {
+        UnexpectedEof(Literal("a"), ParserPosition(0, 0)) |> Error()
+      })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedEof(Literal("a"), ParserPosition(0, 0)))
     }),
   ])
 }
 
 pub fn token_tests() {
-  describe("gparsec/token", [
+  describe("pickle/token", [
     it("returns a parser that parsed a single token", fn() {
-      gparsec.input("abc", "Characters: ")
-      |> gparsec.token("a", fn(value, token) { value <> token })
+      new_parser("abc", "Characters: ")
+      |> pickle.token("a", fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(
         ["b", "c"],
@@ -32,9 +43,9 @@ pub fn token_tests() {
       ))
     }),
     it("returns a parser that parsed a set of tokens", fn() {
-      gparsec.input("abcdefg", "Characters: ")
-      |> gparsec.token("abc", fn(value, tokens) { value <> tokens })
-      |> gparsec.token("def", fn(value, tokens) { value <> tokens })
+      new_parser("abcdefg", "Characters: ")
+      |> pickle.token("abc", fn(value, tokens) { value <> tokens })
+      |> pickle.token("def", fn(value, tokens) { value <> tokens })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(
         ["g"],
@@ -43,16 +54,16 @@ pub fn token_tests() {
       ))
     }),
     it("returns a parser with a position that detected line breaks", fn() {
-      gparsec.input("abc\ndef", "Characters: ")
-      |> gparsec.token("abc", fn(value, tokens) { value <> tokens })
-      |> gparsec.token("\n", gparsec.ignore_token)
-      |> gparsec.token("def", fn(value, tokens) { value <> tokens })
+      new_parser("abc\ndef", "Characters: ")
+      |> pickle.token("abc", fn(value, tokens) { value <> tokens })
+      |> pickle.token("\n", pickle.ignore_token)
+      |> pickle.token("def", fn(value, tokens) { value <> tokens })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(1, 3), "Characters: abcdef"))
     }),
     it("returns an error when encountering an unexpected token", fn() {
-      gparsec.input("abcd", "")
-      |> gparsec.token("abdz", fn(value, tokens) { value <> tokens })
+      new_parser("abcd", "")
+      |> pickle.token("abdz", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("abdz"),
@@ -61,8 +72,8 @@ pub fn token_tests() {
       ))
     }),
     it("returns an error when encountering an unexpected EOF", fn() {
-      gparsec.input("abc", "")
-      |> gparsec.token("abcd", fn(value, tokens) { value <> tokens })
+      new_parser("abc", "")
+      |> pickle.token("abcd", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("abcd"), ParserPosition(0, 3)))
     }),
@@ -70,16 +81,16 @@ pub fn token_tests() {
 }
 
 pub fn optional_tests() {
-  describe("gparsec/optional", [
+  describe("pickle/optional", [
     it(
       "returns a parser that parsed a set of tokens including some optional tokens",
       fn() {
-        gparsec.input("(a,b)", Pair("", ""))
-        |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
-        |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
-        |> gparsec.token(",", gparsec.ignore_token)
-        |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
-        |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+        new_parser("(a,b)", Pair("", ""))
+        |> pickle.optional(pickle.token(_, "(", pickle.ignore_token))
+        |> pickle.token("a", fn(value, token) { Pair(..value, left: token) })
+        |> pickle.token(",", pickle.ignore_token)
+        |> pickle.token("b", fn(value, token) { Pair(..value, right: token) })
+        |> pickle.optional(pickle.token(_, ")", pickle.ignore_token))
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 5), Pair("a", "b")))
       },
@@ -87,24 +98,24 @@ pub fn optional_tests() {
     it(
       "returns a parser that parsed a set of tokens including some missing optional tokens",
       fn() {
-        gparsec.input("a,b)", Pair("", ""))
-        |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
-        |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
-        |> gparsec.token(",", gparsec.ignore_token)
-        |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
-        |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+        new_parser("a,b)", Pair("", ""))
+        |> pickle.optional(pickle.token(_, "(", pickle.ignore_token))
+        |> pickle.token("a", fn(value, token) { Pair(..value, left: token) })
+        |> pickle.token(",", pickle.ignore_token)
+        |> pickle.token("b", fn(value, token) { Pair(..value, right: token) })
+        |> pickle.optional(pickle.token(_, ")", pickle.ignore_token))
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 4), Pair("a", "b")))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("(a,b)", Pair("", ""))
-      |> gparsec.token("what's going on here ...", gparsec.ignore_token)
-      |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
-      |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
-      |> gparsec.token(",", gparsec.ignore_token)
-      |> gparsec.token("b", fn(value, token) { Pair(..value, right: token) })
-      |> gparsec.optional(gparsec.token(_, ")", gparsec.ignore_token))
+      new_parser("(a,b)", Pair("", ""))
+      |> pickle.token("what's going on here ...", pickle.ignore_token)
+      |> pickle.optional(pickle.token(_, "(", pickle.ignore_token))
+      |> pickle.token("a", fn(value, token) { Pair(..value, left: token) })
+      |> pickle.token(",", pickle.ignore_token)
+      |> pickle.token("b", fn(value, token) { Pair(..value, right: token) })
+      |> pickle.optional(pickle.token(_, ")", pickle.ignore_token))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("what's going on here ..."),
@@ -116,21 +127,17 @@ pub fn optional_tests() {
 }
 
 pub fn many_tests() {
-  describe("gparsec/many", [
+  describe("pickle/many", [
     it("returns a parser that parsed multiple tokens", fn() {
-      gparsec.input("aaab", "Characters: ")
-      |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
+      new_parser("aaab", "Characters: ")
+      |> pickle.many(pickle.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), "Characters: aaa"))
     }),
     it("returns a parser that parsed no tokens", fn() {
-      gparsec.input("abab", "Characters: ")
-      |> gparsec.many(gparsec.token(
-        _,
-        "aa",
-        fn(value, token) { value <> token },
-      ))
-      |> gparsec.token("ab", fn(value, token) { value <> token })
+      new_parser("abab", "Characters: ")
+      |> pickle.many(pickle.token(_, "aa", fn(value, token) { value <> token }))
+      |> pickle.token("ab", fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(
         ["a", "b"],
@@ -139,9 +146,9 @@ pub fn many_tests() {
       ))
     }),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("aaa", "Characters: ")
-      |> gparsec.token("ab", fn(value, token) { value <> token })
-      |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
+      new_parser("aaa", "Characters: ")
+      |> pickle.token("ab", fn(value, token) { value <> token })
+      |> pickle.many(pickle.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("ab"),
@@ -153,77 +160,81 @@ pub fn many_tests() {
 }
 
 pub fn integer_tests() {
-  describe("gparsec/integer", [
+  describe("pickle/integer", [
     it("returns a parser that parsed a positive integer", fn() {
-      gparsec.input("250", 0)
-      |> gparsec.integer(fn(_, integer) { integer })
+      new_parser("250", 0)
+      |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 3), 250))
     }),
     it(
       "returns a parser that parsed a positive integer with an explicit sign",
       fn() {
-        gparsec.input("+120", 0)
-        |> gparsec.integer(fn(_, integer) { integer })
+        new_parser("+120", 0)
+        |> pickle.integer(fn(_, integer) { integer })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 4), 120))
       },
     ),
     it("returns a parser that parsed a negative integer", fn() {
-      gparsec.input("-75", 0)
-      |> gparsec.integer(fn(_, integer) { integer })
+      new_parser("-75", 0)
+      |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 3), -75))
     }),
     it(
       "returns a parser that parsed an integer and ignored non-digit tokens afterwards",
       fn() {
-        gparsec.input("5005abc", 0)
-        |> gparsec.integer(fn(_, integer) { integer })
+        new_parser("5005abc", 0)
+        |> pickle.integer(fn(_, integer) { integer })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 4), 5005))
       },
     ),
     it("returns a parser that parsed multiple integers", fn() {
-      gparsec.input("[20,72]", Point(0, 0))
-      |> gparsec.token("[", gparsec.ignore_token)
-      |> gparsec.integer(fn(value, integer) { Point(..value, x: integer) })
-      |> gparsec.token(",", gparsec.ignore_token)
-      |> gparsec.integer(fn(value, integer) { Point(..value, y: integer) })
-      |> gparsec.token("]", gparsec.ignore_token)
+      new_parser("[20,72]", Point(0, 0))
+      |> pickle.token("[", pickle.ignore_token)
+      |> pickle.integer(fn(value, integer) { Point(..value, x: integer) })
+      |> pickle.token(",", pickle.ignore_token)
+      |> pickle.integer(fn(value, integer) { Point(..value, y: integer) })
+      |> pickle.token("]", pickle.ignore_token)
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 7), Point(20, 72)))
     }),
     it("returns a parser that ignored the last integer", fn() {
-      gparsec.input("100;200;400", 0)
-      |> gparsec.integer(fn(value, integer) { value + integer })
-      |> gparsec.token(";", gparsec.ignore_token)
-      |> gparsec.integer(fn(value, integer) { value + integer })
-      |> gparsec.token(";", gparsec.ignore_token)
-      |> gparsec.integer(gparsec.ignore_integer)
+      new_parser("100;200;400", 0)
+      |> pickle.integer(fn(value, integer) { value + integer })
+      |> pickle.token(";", pickle.ignore_token)
+      |> pickle.integer(fn(value, integer) { value + integer })
+      |> pickle.token(";", pickle.ignore_token)
+      |> pickle.integer(pickle.ignore_integer)
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 11), 300))
     }),
     it("returns an error when being provided an invalid integer", fn() {
-      gparsec.input("not_an_integer", 0)
-      |> gparsec.integer(fn(_, integer) { integer })
+      new_parser("not_an_integer", 0)
+      |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken(Digit, "n", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedToken(
+        Pattern("[0-9]"),
+        "n",
+        ParserPosition(0, 0),
+      ))
     }),
     it(
       "returns an error when being provided no further tokens after the sign",
       fn() {
-        gparsec.input("abc-", 0)
-        |> gparsec.token("abc", gparsec.ignore_token)
-        |> gparsec.integer(fn(_, integer) { integer })
+        new_parser("abc-", 0)
+        |> pickle.token("abc", pickle.ignore_token)
+        |> pickle.integer(fn(_, integer) { integer })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 4)))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("abc2000", 0)
-      |> gparsec.token("abd", gparsec.ignore_token)
-      |> gparsec.integer(fn(_, integer) { integer })
+      new_parser("abc2000", 0)
+      |> pickle.token("abd", pickle.ignore_token)
+      |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("abd"),
@@ -232,42 +243,42 @@ pub fn integer_tests() {
       ))
     }),
     it("returns an error when being provided no tokens", fn() {
-      gparsec.input("", 0)
-      |> gparsec.integer(fn(_, integer) { integer })
+      new_parser("", 0)
+      |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 0)))
     }),
   ])
 }
 
 pub fn float_tests() {
-  describe("gparsec/float", [
+  describe("pickle/float", [
     it("returns a parser that parsed a positive float", fn() {
-      gparsec.input("250.0", 0.0)
-      |> gparsec.float(fn(_, float) { float })
+      new_parser("250.0", 0.0)
+      |> pickle.float(fn(_, float) { float })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 5), 250.0))
     }),
     it(
       "returns a parser that parsed a positive float with an explicit sign",
       fn() {
-        gparsec.input("+20.4", 0.0)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser("+20.4", 0.0)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 5), 20.4))
       },
     ),
     it("returns a parser that parsed a negative float", fn() {
-      gparsec.input("-75.5", 0.0)
-      |> gparsec.float(fn(_, float) { float })
+      new_parser("-75.5", 0.0)
+      |> pickle.float(fn(_, float) { float })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 5), -75.5))
     }),
     it(
       "returns a parser that parsed a positive float without an integral part",
       fn() {
-        gparsec.input(".75", 0.0)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser(".75", 0.0)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 3), 0.75))
       },
@@ -275,8 +286,8 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a negative float without an integral part",
       fn() {
-        gparsec.input("-.5", 0.0)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser("-.5", 0.0)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 3), -0.5))
       },
@@ -284,8 +295,8 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a float and ignored non-digit tokens afterwards",
       fn() {
-        gparsec.input("5005.25abc", 0.0)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser("5005.25abc", 0.0)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           ["a", "b", "c"],
@@ -297,38 +308,38 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a float and ignored everything after the second decimal point",
       fn() {
-        gparsec.input("25.5.1", 0.0)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser("25.5.1", 0.0)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([".", "1"], ParserPosition(0, 4), 25.5))
       },
     ),
     it("returns a parser that parsed multiple floats", fn() {
-      gparsec.input("[20.0,72.4]", Point(0.0, 0.0))
-      |> gparsec.token("[", gparsec.ignore_token)
-      |> gparsec.float(fn(value, float) { Point(..value, x: float) })
-      |> gparsec.token(",", gparsec.ignore_token)
-      |> gparsec.float(fn(value, float) { Point(..value, y: float) })
-      |> gparsec.token("]", gparsec.ignore_token)
+      new_parser("[20.0,72.4]", Point(0.0, 0.0))
+      |> pickle.token("[", pickle.ignore_token)
+      |> pickle.float(fn(value, float) { Point(..value, x: float) })
+      |> pickle.token(",", pickle.ignore_token)
+      |> pickle.float(fn(value, float) { Point(..value, y: float) })
+      |> pickle.token("]", pickle.ignore_token)
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 11), Point(20.0, 72.4)))
     }),
     it("returns a parser that ignored the last float", fn() {
-      gparsec.input("100.5;200.5;400.0", 0.0)
-      |> gparsec.float(fn(value, float) { value +. float })
-      |> gparsec.token(";", gparsec.ignore_token)
-      |> gparsec.float(fn(value, float) { value +. float })
-      |> gparsec.token(";", gparsec.ignore_token)
-      |> gparsec.float(gparsec.ignore_float)
+      new_parser("100.5;200.5;400.0", 0.0)
+      |> pickle.float(fn(value, float) { value +. float })
+      |> pickle.token(";", pickle.ignore_token)
+      |> pickle.float(fn(value, float) { value +. float })
+      |> pickle.token(";", pickle.ignore_token)
+      |> pickle.float(pickle.ignore_float)
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 17), 301.0))
     }),
     it("returns an error when being provided an invalid float", fn() {
-      gparsec.input("not_a_float", 0.0)
-      |> gparsec.float(fn(_, float) { float })
+      new_parser("not_a_float", 0.0)
+      |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        DigitOrDecimalPoint,
+        Pattern("[0-9.]"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -336,20 +347,20 @@ pub fn float_tests() {
     it(
       "returns an error when being provided no further tokens after the sign",
       fn() {
-        gparsec.input("abc-", 0.0)
-        |> gparsec.token("abc", gparsec.ignore_token)
-        |> gparsec.float(fn(_, float) { float })
+        new_parser("abc-", 0.0)
+        |> pickle.token("abc", pickle.ignore_token)
+        |> pickle.float(fn(_, float) { float })
         |> expect.to_be_error()
         |> expect.to_equal(UnexpectedEof(
-          DigitOrDecimalPoint,
+          Pattern("[0-9.]"),
           ParserPosition(0, 4),
         ))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("abc2000.0", 0.0)
-      |> gparsec.token("abd", gparsec.ignore_token)
-      |> gparsec.float(fn(_, float) { float })
+      new_parser("abc2000.0", 0.0)
+      |> pickle.token("abd", pickle.ignore_token)
+      |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("abd"),
@@ -358,24 +369,21 @@ pub fn float_tests() {
       ))
     }),
     it("returns an error when being provided no tokens", fn() {
-      gparsec.input("", 0.0)
-      |> gparsec.float(fn(_, float) { float })
+      new_parser("", 0.0)
+      |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(
-        DigitOrDecimalPoint,
-        ParserPosition(0, 0),
-      ))
+      |> expect.to_equal(UnexpectedEof(Pattern("[0-9.]"), ParserPosition(0, 0)))
     }),
   ])
 }
 
 pub fn until_tests() {
-  describe("gparsec/until", [
+  describe("pickle/until", [
     it(
       "returns a parser that parsed all tokens until finding the equal sign",
       fn() {
-        gparsec.input("let test = \"value\";", "")
-        |> gparsec.until("=", fn(value, token) { value <> token })
+        new_parser("let test = \"value\";", "")
+        |> pickle.until("=", fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           ["=", " ", "\"", "v", "a", "l", "u", "e", "\"", ";"],
@@ -387,8 +395,8 @@ pub fn until_tests() {
     it(
       "returns a parser that parsed all tokens until finding the EQUALS word",
       fn() {
-        gparsec.input("var test EQUALS something", "")
-        |> gparsec.until("EQUALS", fn(value, token) { value <> token })
+        new_parser("var test EQUALS something", "")
+        |> pickle.until("EQUALS", fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           [
@@ -403,8 +411,8 @@ pub fn until_tests() {
     it(
       "returns a parser that parsed all tokens until finding the equal sign multiple times",
       fn() {
-        gparsec.input("let test = \"value\";\nlet test2 = \"value2\";", [])
-        |> gparsec.many(until_including_token(
+        new_parser("let test = \"value\";\nlet test2 = \"value2\";", [])
+        |> pickle.many(until_including_token(
           _,
           "=",
           fn(value, token) { [token, ..value] },
@@ -420,8 +428,8 @@ pub fn until_tests() {
       },
     ),
     it("returns an error when the until token could not be found", fn() {
-      gparsec.input("let test value;", "")
-      |> gparsec.until("=", fn(value, token) { value <> token })
+      new_parser("let test value;", "")
+      |> pickle.until("=", fn(value, token) { value <> token })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
     }),
@@ -429,12 +437,12 @@ pub fn until_tests() {
 }
 
 pub fn skip_until_tests() {
-  describe("gparsec/skip_until", [
+  describe("pickle/skip_until", [
     it(
       "returns a parser that skipped all tokens until finding the equal sign",
       fn() {
-        gparsec.input("let test = \"value\";", "")
-        |> gparsec.skip_until("=")
+        new_parser("let test = \"value\";", "")
+        |> pickle.skip_until("=")
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           ["=", " ", "\"", "v", "a", "l", "u", "e", "\"", ";"],
@@ -446,8 +454,8 @@ pub fn skip_until_tests() {
     it(
       "returns a parser that skipped all tokens until finding the EQUALS word",
       fn() {
-        gparsec.input("var test EQUALS something", "")
-        |> gparsec.skip_until("EQUALS")
+        new_parser("var test EQUALS something", "")
+        |> pickle.skip_until("EQUALS")
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           [
@@ -460,8 +468,8 @@ pub fn skip_until_tests() {
       },
     ),
     it("returns an error when the until token could not be found", fn() {
-      gparsec.input("let test value;", "")
-      |> gparsec.skip_until("=")
+      new_parser("let test value;", "")
+      |> pickle.skip_until("=")
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
     }),
@@ -469,10 +477,10 @@ pub fn skip_until_tests() {
 }
 
 pub fn repeat_tests() {
-  describe("gparsec/repeat", [
+  describe("pickle/repeat", [
     it("returns a parser that parsed multiple tokens", fn() {
-      gparsec.input("aaab", [])
-      |> gparsec.repeat("", gparsec.token(
+      new_parser("aaab", [])
+      |> pickle.repeat("", pickle.token(
         _,
         "a",
         fn(value, token) { value <> token },
@@ -481,20 +489,20 @@ pub fn repeat_tests() {
       |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), ["a", "a", "a"]))
     }),
     it("returns a parser that parsed no tokens", fn() {
-      gparsec.input("abab", [])
-      |> gparsec.repeat("", gparsec.token(
+      new_parser("abab", [])
+      |> pickle.repeat("", pickle.token(
         _,
         "aa",
         fn(value, token) { value <> token },
       ))
-      |> gparsec.token("ab", fn(value, token) { [token, ..value] })
+      |> pickle.token("ab", fn(value, token) { [token, ..value] })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(["a", "b"], ParserPosition(0, 2), ["ab"]))
     }),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("aaa", [])
-      |> gparsec.token("ab", fn(value, token) { [token, ..value] })
-      |> gparsec.repeat("", gparsec.token(
+      new_parser("aaa", [])
+      |> pickle.token("ab", fn(value, token) { [token, ..value] })
+      |> pickle.repeat("", pickle.token(
         _,
         "a",
         fn(value, token) { value <> token },
@@ -510,18 +518,18 @@ pub fn repeat_tests() {
 }
 
 pub fn whitespace_tests() {
-  describe("gparsec/whitespace", [
+  describe("pickle/whitespace", [
     it("returns a parser that parsed whitespace tokens", fn() {
-      gparsec.input("\t \n", "")
-      |> gparsec.whitespace(fn(value, token) { value <> token })
+      new_parser("\t \n", "")
+      |> pickle.whitespace(fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(1, 0), "\t \n"))
     }),
     it(
       "returns a parser that parsed whitespace tokens until encountering the first non-whitespace token",
       fn() {
-        gparsec.input("\t \nabc", "")
-        |> gparsec.whitespace(fn(value, token) { value <> token })
+        new_parser("\t \nabc", "")
+        |> pickle.whitespace(fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           ["a", "b", "c"],
@@ -533,8 +541,8 @@ pub fn whitespace_tests() {
     it(
       "returns a parser that parsed no whitespace tokens since its input started with non-whitespace tokens",
       fn() {
-        gparsec.input("not_whitespace\t \n", "")
-        |> gparsec.whitespace(fn(value, token) { value <> token })
+        new_parser("not_whitespace\t \n", "")
+        |> pickle.whitespace(fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
           [
@@ -547,9 +555,9 @@ pub fn whitespace_tests() {
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("ab\t \n", "")
-      |> gparsec.token("aa", fn(value, token) { value <> token })
-      |> gparsec.whitespace(fn(value, token) { value <> token })
+      new_parser("ab\t \n", "")
+      |> pickle.token("aa", fn(value, token) { value <> token })
+      |> pickle.whitespace(fn(value, token) { value <> token })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("aa"),
@@ -568,12 +576,16 @@ type Point(a) {
   Point(x: a, y: a)
 }
 
+fn new_parser(input: String, initial_value: a) -> ParserResult(a) {
+  Ok(Parser(input |> string.split(""), ParserPosition(0, 0), initial_value))
+}
+
 fn until_including_token(
   prev: ParserResult(a),
   token: String,
   to: ParserMapperCallback(a, String),
 ) -> ParserResult(a) {
   prev
-  |> gparsec.until(token, to)
-  |> gparsec.token(token, gparsec.ignore_token)
+  |> pickle.until(token, to)
+  |> pickle.token(token, pickle.ignore_token)
 }
