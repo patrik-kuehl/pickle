@@ -23,6 +23,17 @@ formatter that comes with Gleam.
 
 You can run `npm run check` to check if everything is formatted accordingly and `npm run format` to run the formatters.
 
+To keep modules organized, you need to follow this structure:
+
+| Order |   Code Category   |
+| :---: | :---------------: |
+|   1   | public constants  |
+|   2   |   public types    |
+|   3   | public functions  |
+|   4   | private constants |
+|   5   |   private types   |
+|   6   | private functions |
+
 Apart from this, just keep your code readable. Remember, code is read more often than written. Everything else is just a
 matter of someone's personal taste, and the heavy usage of opinionated formatters just prevents such (useless)
 discussions.
