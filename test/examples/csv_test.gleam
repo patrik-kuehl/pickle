@@ -11,26 +11,20 @@ import startest/expect
 ///
 /// The parser needs to be able to parse and collect all invoices.
 pub fn csv_tests() {
-  describe("examples/csv_test", [
-    describe("invoices.csv", [
-      it("returns all invoices that are part of the CSV file", fn() {
-        let assert Ok(csv_content) =
-          simplifile.read("./test/examples/invoices.csv")
+  describe("examples/csv_test/parse_invoices", [
+    it("returns all invoices that are part of the invoices.csv file", fn() {
+      let assert Ok(csv_content) =
+        simplifile.read("./test/examples/invoices.csv")
 
-        let parser =
-          gparsec.input(csv_content, [])
-          |> parse_invoices()
-          |> expect.to_be_ok()
-
-        parser.value
-        |> expect.to_equal([
-          Invoice(number: 10, recipient: "Jacob", total: 9.99),
-          Invoice(number: 8, recipient: "Tim", total: 120.49),
-          Invoice(number: 5, recipient: "Maria", total: 29.9),
-          Invoice(number: 1, recipient: "John", total: 250.0),
-        ])
-      }),
-    ]),
+      gparsec.parse(csv_content, [], parse_invoices)
+      |> expect.to_be_ok()
+      |> expect.to_equal([
+        Invoice(number: 10, recipient: "Jacob", total: 9.99),
+        Invoice(number: 8, recipient: "Tim", total: 120.49),
+        Invoice(number: 5, recipient: "Maria", total: 29.9),
+        Invoice(number: 1, recipient: "John", total: 250.0),
+      ])
+    }),
   ])
 }
 

@@ -1,6 +1,7 @@
+import gleam/string
 import gparsec.{
-  type ParserMapperCallback, type ParserResult, Digit, DigitOrDecimalPoint,
-  Literal, Parser, ParserPosition, UnexpectedEof, UnexpectedToken,
+  type Parser, type ParserMapperCallback, type ParserResult, Literal, Parser,
+  ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -9,12 +10,22 @@ pub fn main() {
   startest.run(startest.default_config())
 }
 
-pub fn input_tests() {
-  describe("gparsec/input", [
-    it("returns a new parser", fn() {
-      gparsec.input("abc", [])
-      |> expect.to_be_ok()
-      |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 0), []))
+pub fn parse_tests() {
+  describe("gparsec/parse", [
+    it(
+      "returns the parser value when the provided parser callback succeeded",
+      fn() {
+        gparsec.parse("abc", "", fn(result) { result })
+        |> expect.to_be_ok()
+        |> expect.to_equal("")
+      },
+    ),
+    it("returns an error when the provided parser callback failed", fn() {
+      gparsec.parse("abc", "", fn(_) {
+        UnexpectedEof(Literal("a"), ParserPosition(0, 0)) |> Error()
+      })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedEof(Literal("a"), ParserPosition(0, 0)))
     }),
   ])
 }
@@ -22,7 +33,7 @@ pub fn input_tests() {
 pub fn token_tests() {
   describe("gparsec/token", [
     it("returns a parser that parsed a single token", fn() {
-      gparsec.input("abc", "Characters: ")
+      new_parser("abc", "Characters: ")
       |> gparsec.token("a", fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(
@@ -32,7 +43,7 @@ pub fn token_tests() {
       ))
     }),
     it("returns a parser that parsed a set of tokens", fn() {
-      gparsec.input("abcdefg", "Characters: ")
+      new_parser("abcdefg", "Characters: ")
       |> gparsec.token("abc", fn(value, tokens) { value <> tokens })
       |> gparsec.token("def", fn(value, tokens) { value <> tokens })
       |> expect.to_be_ok()
@@ -43,7 +54,7 @@ pub fn token_tests() {
       ))
     }),
     it("returns a parser with a position that detected line breaks", fn() {
-      gparsec.input("abc\ndef", "Characters: ")
+      new_parser("abc\ndef", "Characters: ")
       |> gparsec.token("abc", fn(value, tokens) { value <> tokens })
       |> gparsec.token("\n", gparsec.ignore_token)
       |> gparsec.token("def", fn(value, tokens) { value <> tokens })
@@ -51,7 +62,7 @@ pub fn token_tests() {
       |> expect.to_equal(Parser([], ParserPosition(1, 3), "Characters: abcdef"))
     }),
     it("returns an error when encountering an unexpected token", fn() {
-      gparsec.input("abcd", "")
+      new_parser("abcd", "")
       |> gparsec.token("abdz", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
@@ -61,7 +72,7 @@ pub fn token_tests() {
       ))
     }),
     it("returns an error when encountering an unexpected EOF", fn() {
-      gparsec.input("abc", "")
+      new_parser("abc", "")
       |> gparsec.token("abcd", fn(value, tokens) { value <> tokens })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("abcd"), ParserPosition(0, 3)))
@@ -74,7 +85,7 @@ pub fn optional_tests() {
     it(
       "returns a parser that parsed a set of tokens including some optional tokens",
       fn() {
-        gparsec.input("(a,b)", Pair("", ""))
+        new_parser("(a,b)", Pair("", ""))
         |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
         |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
         |> gparsec.token(",", gparsec.ignore_token)
@@ -87,7 +98,7 @@ pub fn optional_tests() {
     it(
       "returns a parser that parsed a set of tokens including some missing optional tokens",
       fn() {
-        gparsec.input("a,b)", Pair("", ""))
+        new_parser("a,b)", Pair("", ""))
         |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
         |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
         |> gparsec.token(",", gparsec.ignore_token)
@@ -98,7 +109,7 @@ pub fn optional_tests() {
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("(a,b)", Pair("", ""))
+      new_parser("(a,b)", Pair("", ""))
       |> gparsec.token("what's going on here ...", gparsec.ignore_token)
       |> gparsec.optional(gparsec.token(_, "(", gparsec.ignore_token))
       |> gparsec.token("a", fn(value, token) { Pair(..value, left: token) })
@@ -118,13 +129,13 @@ pub fn optional_tests() {
 pub fn many_tests() {
   describe("gparsec/many", [
     it("returns a parser that parsed multiple tokens", fn() {
-      gparsec.input("aaab", "Characters: ")
+      new_parser("aaab", "Characters: ")
       |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), "Characters: aaa"))
     }),
     it("returns a parser that parsed no tokens", fn() {
-      gparsec.input("abab", "Characters: ")
+      new_parser("abab", "Characters: ")
       |> gparsec.many(gparsec.token(
         _,
         "aa",
@@ -139,7 +150,7 @@ pub fn many_tests() {
       ))
     }),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("aaa", "Characters: ")
+      new_parser("aaa", "Characters: ")
       |> gparsec.token("ab", fn(value, token) { value <> token })
       |> gparsec.many(gparsec.token(_, "a", fn(value, token) { value <> token }))
       |> expect.to_be_error()
@@ -155,7 +166,7 @@ pub fn many_tests() {
 pub fn integer_tests() {
   describe("gparsec/integer", [
     it("returns a parser that parsed a positive integer", fn() {
-      gparsec.input("250", 0)
+      new_parser("250", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 3), 250))
@@ -163,14 +174,14 @@ pub fn integer_tests() {
     it(
       "returns a parser that parsed a positive integer with an explicit sign",
       fn() {
-        gparsec.input("+120", 0)
+        new_parser("+120", 0)
         |> gparsec.integer(fn(_, integer) { integer })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 4), 120))
       },
     ),
     it("returns a parser that parsed a negative integer", fn() {
-      gparsec.input("-75", 0)
+      new_parser("-75", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 3), -75))
@@ -178,14 +189,14 @@ pub fn integer_tests() {
     it(
       "returns a parser that parsed an integer and ignored non-digit tokens afterwards",
       fn() {
-        gparsec.input("5005abc", 0)
+        new_parser("5005abc", 0)
         |> gparsec.integer(fn(_, integer) { integer })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 4), 5005))
       },
     ),
     it("returns a parser that parsed multiple integers", fn() {
-      gparsec.input("[20,72]", Point(0, 0))
+      new_parser("[20,72]", Point(0, 0))
       |> gparsec.token("[", gparsec.ignore_token)
       |> gparsec.integer(fn(value, integer) { Point(..value, x: integer) })
       |> gparsec.token(",", gparsec.ignore_token)
@@ -195,7 +206,7 @@ pub fn integer_tests() {
       |> expect.to_equal(Parser([], ParserPosition(0, 7), Point(20, 72)))
     }),
     it("returns a parser that ignored the last integer", fn() {
-      gparsec.input("100;200;400", 0)
+      new_parser("100;200;400", 0)
       |> gparsec.integer(fn(value, integer) { value + integer })
       |> gparsec.token(";", gparsec.ignore_token)
       |> gparsec.integer(fn(value, integer) { value + integer })
@@ -205,23 +216,27 @@ pub fn integer_tests() {
       |> expect.to_equal(Parser([], ParserPosition(0, 11), 300))
     }),
     it("returns an error when being provided an invalid integer", fn() {
-      gparsec.input("not_an_integer", 0)
+      new_parser("not_an_integer", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken(Digit, "n", ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedToken(
+        Pattern("[0-9]"),
+        "n",
+        ParserPosition(0, 0),
+      ))
     }),
     it(
       "returns an error when being provided no further tokens after the sign",
       fn() {
-        gparsec.input("abc-", 0)
+        new_parser("abc-", 0)
         |> gparsec.token("abc", gparsec.ignore_token)
         |> gparsec.integer(fn(_, integer) { integer })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 4)))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("abc2000", 0)
+      new_parser("abc2000", 0)
       |> gparsec.token("abd", gparsec.ignore_token)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
@@ -232,10 +247,10 @@ pub fn integer_tests() {
       ))
     }),
     it("returns an error when being provided no tokens", fn() {
-      gparsec.input("", 0)
+      new_parser("", 0)
       |> gparsec.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Digit, ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 0)))
     }),
   ])
 }
@@ -243,7 +258,7 @@ pub fn integer_tests() {
 pub fn float_tests() {
   describe("gparsec/float", [
     it("returns a parser that parsed a positive float", fn() {
-      gparsec.input("250.0", 0.0)
+      new_parser("250.0", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 5), 250.0))
@@ -251,14 +266,14 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a positive float with an explicit sign",
       fn() {
-        gparsec.input("+20.4", 0.0)
+        new_parser("+20.4", 0.0)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 5), 20.4))
       },
     ),
     it("returns a parser that parsed a negative float", fn() {
-      gparsec.input("-75.5", 0.0)
+      new_parser("-75.5", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(0, 5), -75.5))
@@ -266,7 +281,7 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a positive float without an integral part",
       fn() {
-        gparsec.input(".75", 0.0)
+        new_parser(".75", 0.0)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 3), 0.75))
@@ -275,7 +290,7 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a negative float without an integral part",
       fn() {
-        gparsec.input("-.5", 0.0)
+        new_parser("-.5", 0.0)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([], ParserPosition(0, 3), -0.5))
@@ -284,7 +299,7 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a float and ignored non-digit tokens afterwards",
       fn() {
-        gparsec.input("5005.25abc", 0.0)
+        new_parser("5005.25abc", 0.0)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -297,14 +312,14 @@ pub fn float_tests() {
     it(
       "returns a parser that parsed a float and ignored everything after the second decimal point",
       fn() {
-        gparsec.input("25.5.1", 0.0)
+        new_parser("25.5.1", 0.0)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser([".", "1"], ParserPosition(0, 4), 25.5))
       },
     ),
     it("returns a parser that parsed multiple floats", fn() {
-      gparsec.input("[20.0,72.4]", Point(0.0, 0.0))
+      new_parser("[20.0,72.4]", Point(0.0, 0.0))
       |> gparsec.token("[", gparsec.ignore_token)
       |> gparsec.float(fn(value, float) { Point(..value, x: float) })
       |> gparsec.token(",", gparsec.ignore_token)
@@ -314,7 +329,7 @@ pub fn float_tests() {
       |> expect.to_equal(Parser([], ParserPosition(0, 11), Point(20.0, 72.4)))
     }),
     it("returns a parser that ignored the last float", fn() {
-      gparsec.input("100.5;200.5;400.0", 0.0)
+      new_parser("100.5;200.5;400.0", 0.0)
       |> gparsec.float(fn(value, float) { value +. float })
       |> gparsec.token(";", gparsec.ignore_token)
       |> gparsec.float(fn(value, float) { value +. float })
@@ -324,11 +339,11 @@ pub fn float_tests() {
       |> expect.to_equal(Parser([], ParserPosition(0, 17), 301.0))
     }),
     it("returns an error when being provided an invalid float", fn() {
-      gparsec.input("not_a_float", 0.0)
+      new_parser("not_a_float", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        DigitOrDecimalPoint,
+        Pattern("[0-9.]"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -336,18 +351,18 @@ pub fn float_tests() {
     it(
       "returns an error when being provided no further tokens after the sign",
       fn() {
-        gparsec.input("abc-", 0.0)
+        new_parser("abc-", 0.0)
         |> gparsec.token("abc", gparsec.ignore_token)
         |> gparsec.float(fn(_, float) { float })
         |> expect.to_be_error()
         |> expect.to_equal(UnexpectedEof(
-          DigitOrDecimalPoint,
+          Pattern("[0-9.]"),
           ParserPosition(0, 4),
         ))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("abc2000.0", 0.0)
+      new_parser("abc2000.0", 0.0)
       |> gparsec.token("abd", gparsec.ignore_token)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
@@ -358,13 +373,10 @@ pub fn float_tests() {
       ))
     }),
     it("returns an error when being provided no tokens", fn() {
-      gparsec.input("", 0.0)
+      new_parser("", 0.0)
       |> gparsec.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(
-        DigitOrDecimalPoint,
-        ParserPosition(0, 0),
-      ))
+      |> expect.to_equal(UnexpectedEof(Pattern("[0-9.]"), ParserPosition(0, 0)))
     }),
   ])
 }
@@ -374,7 +386,7 @@ pub fn until_tests() {
     it(
       "returns a parser that parsed all tokens until finding the equal sign",
       fn() {
-        gparsec.input("let test = \"value\";", "")
+        new_parser("let test = \"value\";", "")
         |> gparsec.until("=", fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -387,7 +399,7 @@ pub fn until_tests() {
     it(
       "returns a parser that parsed all tokens until finding the EQUALS word",
       fn() {
-        gparsec.input("var test EQUALS something", "")
+        new_parser("var test EQUALS something", "")
         |> gparsec.until("EQUALS", fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -403,7 +415,7 @@ pub fn until_tests() {
     it(
       "returns a parser that parsed all tokens until finding the equal sign multiple times",
       fn() {
-        gparsec.input("let test = \"value\";\nlet test2 = \"value2\";", [])
+        new_parser("let test = \"value\";\nlet test2 = \"value2\";", [])
         |> gparsec.many(until_including_token(
           _,
           "=",
@@ -420,7 +432,7 @@ pub fn until_tests() {
       },
     ),
     it("returns an error when the until token could not be found", fn() {
-      gparsec.input("let test value;", "")
+      new_parser("let test value;", "")
       |> gparsec.until("=", fn(value, token) { value <> token })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
@@ -433,7 +445,7 @@ pub fn skip_until_tests() {
     it(
       "returns a parser that skipped all tokens until finding the equal sign",
       fn() {
-        gparsec.input("let test = \"value\";", "")
+        new_parser("let test = \"value\";", "")
         |> gparsec.skip_until("=")
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -446,7 +458,7 @@ pub fn skip_until_tests() {
     it(
       "returns a parser that skipped all tokens until finding the EQUALS word",
       fn() {
-        gparsec.input("var test EQUALS something", "")
+        new_parser("var test EQUALS something", "")
         |> gparsec.skip_until("EQUALS")
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -460,7 +472,7 @@ pub fn skip_until_tests() {
       },
     ),
     it("returns an error when the until token could not be found", fn() {
-      gparsec.input("let test value;", "")
+      new_parser("let test value;", "")
       |> gparsec.skip_until("=")
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
@@ -471,7 +483,7 @@ pub fn skip_until_tests() {
 pub fn repeat_tests() {
   describe("gparsec/repeat", [
     it("returns a parser that parsed multiple tokens", fn() {
-      gparsec.input("aaab", [])
+      new_parser("aaab", [])
       |> gparsec.repeat("", gparsec.token(
         _,
         "a",
@@ -481,7 +493,7 @@ pub fn repeat_tests() {
       |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), ["a", "a", "a"]))
     }),
     it("returns a parser that parsed no tokens", fn() {
-      gparsec.input("abab", [])
+      new_parser("abab", [])
       |> gparsec.repeat("", gparsec.token(
         _,
         "aa",
@@ -492,7 +504,7 @@ pub fn repeat_tests() {
       |> expect.to_equal(Parser(["a", "b"], ParserPosition(0, 2), ["ab"]))
     }),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("aaa", [])
+      new_parser("aaa", [])
       |> gparsec.token("ab", fn(value, token) { [token, ..value] })
       |> gparsec.repeat("", gparsec.token(
         _,
@@ -512,7 +524,7 @@ pub fn repeat_tests() {
 pub fn whitespace_tests() {
   describe("gparsec/whitespace", [
     it("returns a parser that parsed whitespace tokens", fn() {
-      gparsec.input("\t \n", "")
+      new_parser("\t \n", "")
       |> gparsec.whitespace(fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser([], ParserPosition(1, 0), "\t \n"))
@@ -520,7 +532,7 @@ pub fn whitespace_tests() {
     it(
       "returns a parser that parsed whitespace tokens until encountering the first non-whitespace token",
       fn() {
-        gparsec.input("\t \nabc", "")
+        new_parser("\t \nabc", "")
         |> gparsec.whitespace(fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -533,7 +545,7 @@ pub fn whitespace_tests() {
     it(
       "returns a parser that parsed no whitespace tokens since its input started with non-whitespace tokens",
       fn() {
-        gparsec.input("not_whitespace\t \n", "")
+        new_parser("not_whitespace\t \n", "")
         |> gparsec.whitespace(fn(value, token) { value <> token })
         |> expect.to_be_ok()
         |> expect.to_equal(Parser(
@@ -547,7 +559,7 @@ pub fn whitespace_tests() {
       },
     ),
     it("returns an error when a prior parser failed", fn() {
-      gparsec.input("ab\t \n", "")
+      new_parser("ab\t \n", "")
       |> gparsec.token("aa", fn(value, token) { value <> token })
       |> gparsec.whitespace(fn(value, token) { value <> token })
       |> expect.to_be_error()
@@ -566,6 +578,10 @@ type Pair {
 
 type Point(a) {
   Point(x: a, y: a)
+}
+
+fn new_parser(input: String, initial_value: a) -> ParserResult(a) {
+  Ok(Parser(input |> string.split(""), ParserPosition(0, 0), initial_value))
 }
 
 fn until_including_token(
