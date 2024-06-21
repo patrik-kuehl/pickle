@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Set up BEAM dependencies
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.CI_OTP_VERSION }}
+          gleam-version: ${{ env.CI_GLEAM_VERSION }}
+          rebar3-version: ${{ env.CI_REBAR3_VERSION }}
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -30,6 +36,8 @@ jobs:
         uses: wagoid/commitlint-github-action@v6
         with:
           configFile: commitlintrc.json
+      - name: Check formatting
+        run: npm run check
   test:
     strategy:
       matrix:
