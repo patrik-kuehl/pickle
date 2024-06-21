@@ -1,8 +1,8 @@
-name = "gparsec"
+name = "pickle"
 version = "0.1.0"
 description = "A parser combinator library for Gleam."
 licences = ["MIT"]
-repository = { type = "github", user = "patrik-kuehl", repo = "gparsec" }
+repository = { type = "github", user = "patrik-kuehl", repo = "pickle" }
 gleam = "~> 1.0"
 
 [documentation]

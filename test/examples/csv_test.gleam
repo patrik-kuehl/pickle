@@ -1,4 +1,4 @@
-import gparsec.{type ParserResult}
+import pickle.{type ParserResult}
 import simplifile
 import startest.{describe, it}
 import startest/expect
@@ -16,7 +16,7 @@ pub fn csv_tests() {
       let assert Ok(csv_content) =
         simplifile.read("./test/examples/invoices.csv")
 
-      gparsec.parse(csv_content, [], parse_invoices)
+      pickle.parse(csv_content, [], parse_invoices)
       |> expect.to_be_ok()
       |> expect.to_equal([
         Invoice(number: 10, recipient: "Jacob", total: 9.99),
@@ -41,11 +41,11 @@ fn parse_invoices(
 ) -> ParserResult(List(Invoice)) {
   prev
   |> skip_header()
-  |> gparsec.repeat(create_blank_invoice(), parse_invoice)
+  |> pickle.repeat(create_blank_invoice(), parse_invoice)
 }
 
 fn skip_header(prev: ParserResult(List(Invoice))) -> ParserResult(List(Invoice)) {
-  prev |> gparsec.skip_until("\n") |> gparsec.token("\n", gparsec.ignore_token)
+  prev |> pickle.skip_until("\n") |> pickle.token("\n", pickle.ignore_token)
 }
 
 fn parse_invoice(prev: ParserResult(Invoice)) -> ParserResult(Invoice) {
@@ -57,20 +57,20 @@ fn parse_invoice(prev: ParserResult(Invoice)) -> ParserResult(Invoice) {
 
 fn parse_invoice_number(prev: ParserResult(Invoice)) -> ParserResult(Invoice) {
   prev
-  |> gparsec.integer(fn(invoice, number) { Invoice(..invoice, number: number) })
-  |> gparsec.token(",", gparsec.ignore_token)
+  |> pickle.integer(fn(invoice, number) { Invoice(..invoice, number: number) })
+  |> pickle.token(",", pickle.ignore_token)
 }
 
 fn parse_invoice_recipient(prev: ParserResult(Invoice)) -> ParserResult(Invoice) {
   prev
-  |> gparsec.until(",", fn(invoice, recipient) {
+  |> pickle.until(",", fn(invoice, recipient) {
     Invoice(..invoice, recipient: recipient)
   })
-  |> gparsec.token(",", gparsec.ignore_token)
+  |> pickle.token(",", pickle.ignore_token)
 }
 
 fn parse_invoice_total(prev: ParserResult(Invoice)) -> ParserResult(Invoice) {
   prev
-  |> gparsec.float(fn(invoice, total) { Invoice(..invoice, total: total) })
-  |> gparsec.token("\n", gparsec.ignore_token)
+  |> pickle.float(fn(invoice, total) { Invoice(..invoice, total: total) })
+  |> pickle.token("\n", pickle.ignore_token)
 }
