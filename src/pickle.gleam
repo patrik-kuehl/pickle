@@ -1,6 +1,6 @@
 import gleam/float
 import gleam/int
-import gleam/regex
+import gleam/regex.{type Regex}
 import gleam/result
 import gleam/string
 
@@ -12,18 +12,18 @@ pub type Parser(a) {
   Parser(tokens: List(String), pos: ParserPosition, value: a)
 }
 
-pub type ExpectedParserToken {
+pub type ExpectedToken {
   Literal(String)
   Pattern(String)
 }
 
 pub type ParserFailure {
   UnexpectedToken(
-    expected_token: ExpectedParserToken,
+    expected_token: ExpectedToken,
     actual_token: String,
     pos: ParserPosition,
   )
-  UnexpectedEof(expected_token: ExpectedParserToken, pos: ParserPosition)
+  UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
 }
 
 pub type ParserResult(a) =
@@ -256,6 +256,26 @@ pub fn whitespace(
   |> from(to(previous_parser.value, whitespace_parser.value))
 }
 
+pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  case parser.tokens {
+    [] -> prev
+    [token, ..rest] ->
+      case whitespace_pattern() |> regex.check(token) {
+        False -> prev
+        True ->
+          Parser(
+            rest,
+            increment_parser_position(parser.pos, token),
+            parser.value,
+          )
+          |> Ok()
+          |> skip_whitespace()
+      }
+  }
+}
+
 const digit = Pattern("[0-9]")
 
 const digit_or_decimal_point = Pattern("[0-9.]")
@@ -452,12 +472,10 @@ fn do_repeat(
 fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^\\s$")
-
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case whitespace_pattern() |> regex.check(token) {
         False -> prev
         True ->
           Parser(
@@ -491,4 +509,10 @@ fn increment_parser_position(
     "\n" -> ParserPosition(prev.row + 1, 0)
     _ -> ParserPosition(prev.row, prev.col + 1)
   }
+}
+
+fn whitespace_pattern() -> Regex {
+  let assert Ok(pattern) = regex.from_string("^\\s$")
+
+  pattern
 }

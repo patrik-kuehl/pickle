@@ -568,6 +568,52 @@ pub fn whitespace_tests() {
   ])
 }
 
+pub fn skip_whitespace_tests() {
+  describe("pickle/skip_whitespace", [
+    it(
+      "returns a parser that skipped all tokens until finding the first non-whitespace token",
+      fn() {
+        new_parser("something\t \n abc", "")
+        |> pickle.token("something", fn(value, token) { value <> token })
+        |> pickle.skip_whitespace()
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["a", "b", "c"],
+          ParserPosition(1, 1),
+          "something",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that skipped no whitespace tokens since its input started with non-whitespace tokens",
+      fn() {
+        new_parser("not_whitespace\t \n", "")
+        |> pickle.skip_whitespace()
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "n", "o", "t", "_", "w", "h", "i", "t", "e", "s", "p", "a", "c", "e",
+            "\t", " ", "\n",
+          ],
+          ParserPosition(0, 0),
+          "",
+        ))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      new_parser("ab\t \n", "")
+      |> pickle.token("aa", fn(value, token) { value <> token })
+      |> pickle.skip_whitespace()
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("aa"),
+        "ab",
+        ParserPosition(0, 1),
+      ))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }
