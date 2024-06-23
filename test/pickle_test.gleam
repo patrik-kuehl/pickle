@@ -216,7 +216,7 @@ pub fn integer_tests() {
       |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Pattern("[0-9]"),
+        Pattern("^[0-9]$"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -228,7 +228,10 @@ pub fn integer_tests() {
         |> pickle.token("abc", pickle.ignore_token)
         |> pickle.integer(fn(_, integer) { integer })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(
+          Pattern("^[0-9]$"),
+          ParserPosition(0, 4),
+        ))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
@@ -246,7 +249,7 @@ pub fn integer_tests() {
       new_parser("", 0)
       |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(Pattern("^[0-9]$"), ParserPosition(0, 0)))
     }),
   ])
 }
@@ -339,7 +342,7 @@ pub fn float_tests() {
       |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Pattern("[0-9.]"),
+        Pattern("^[0-9.]$"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -352,7 +355,7 @@ pub fn float_tests() {
         |> pickle.float(fn(_, float) { float })
         |> expect.to_be_error()
         |> expect.to_equal(UnexpectedEof(
-          Pattern("[0-9.]"),
+          Pattern("^[0-9.]$"),
           ParserPosition(0, 4),
         ))
       },
@@ -372,7 +375,10 @@ pub fn float_tests() {
       new_parser("", 0.0)
       |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Pattern("[0-9.]"), ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(
+        Pattern("^[0-9.]$"),
+        ParserPosition(0, 0),
+      ))
     }),
   ])
 }
@@ -558,6 +564,52 @@ pub fn whitespace_tests() {
       new_parser("ab\t \n", "")
       |> pickle.token("aa", fn(value, token) { value <> token })
       |> pickle.whitespace(fn(value, token) { value <> token })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("aa"),
+        "ab",
+        ParserPosition(0, 1),
+      ))
+    }),
+  ])
+}
+
+pub fn skip_whitespace_tests() {
+  describe("pickle/skip_whitespace", [
+    it(
+      "returns a parser that skipped all tokens until finding the first non-whitespace token",
+      fn() {
+        new_parser("something\t \n abc", "")
+        |> pickle.token("something", fn(value, token) { value <> token })
+        |> pickle.skip_whitespace()
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          ["a", "b", "c"],
+          ParserPosition(1, 1),
+          "something",
+        ))
+      },
+    ),
+    it(
+      "returns a parser that skipped no whitespace tokens since its input started with non-whitespace tokens",
+      fn() {
+        new_parser("not_whitespace\t \n", "")
+        |> pickle.skip_whitespace()
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(
+          [
+            "n", "o", "t", "_", "w", "h", "i", "t", "e", "s", "p", "a", "c", "e",
+            "\t", " ", "\n",
+          ],
+          ParserPosition(0, 0),
+          "",
+        ))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      new_parser("ab\t \n", "")
+      |> pickle.token("aa", fn(value, token) { value <> token })
+      |> pickle.skip_whitespace()
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("aa"),

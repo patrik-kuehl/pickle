@@ -12,18 +12,18 @@ pub type Parser(a) {
   Parser(tokens: List(String), pos: ParserPosition, value: a)
 }
 
-pub type ExpectedParserToken {
+pub type ExpectedToken {
   Literal(String)
   Pattern(String)
 }
 
 pub type ParserFailure {
   UnexpectedToken(
-    expected_token: ExpectedParserToken,
+    expected_token: ExpectedToken,
     actual_token: String,
     pos: ParserPosition,
   )
-  UnexpectedEof(expected_token: ExpectedParserToken, pos: ParserPosition)
+  UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
 }
 
 pub type ParserResult(a) =
@@ -122,7 +122,7 @@ pub fn integer(
       case rest {
         [] ->
           UnexpectedEof(
-            digit,
+            Pattern(digit_pattern),
             increment_parser_position(previous_parser.pos, token),
           )
           |> Error()
@@ -135,8 +135,12 @@ pub fn integer(
           |> Ok()
           |> do_integer()
       }
-    [token, ..] -> UnexpectedToken(digit, token, previous_parser.pos) |> Error()
-    [] -> UnexpectedEof(digit, previous_parser.pos) |> Error()
+    [token, ..] ->
+      UnexpectedToken(Pattern(digit_pattern), token, previous_parser.pos)
+      |> Error()
+    [] ->
+      UnexpectedEof(Pattern(digit_pattern), previous_parser.pos)
+      |> Error()
   })
 
   case int.parse(integer_parser.value) {
@@ -148,7 +152,11 @@ pub fn integer(
       )
       |> Ok()
     Error(_) ->
-      UnexpectedToken(digit, integer_parser.value, integer_parser.pos)
+      UnexpectedToken(
+        Pattern(digit_pattern),
+        integer_parser.value,
+        integer_parser.pos,
+      )
       |> Error()
   }
 }
@@ -180,7 +188,7 @@ pub fn float(
       case rest {
         [] ->
           UnexpectedEof(
-            digit_or_decimal_point,
+            Pattern(digit_or_decimal_point_pattern),
             increment_parser_position(previous_parser.pos, token),
           )
           |> Error()
@@ -194,9 +202,18 @@ pub fn float(
           |> do_float(False)
       }
     [token, ..] ->
-      UnexpectedToken(digit_or_decimal_point, token, previous_parser.pos)
+      UnexpectedToken(
+        Pattern(digit_or_decimal_point_pattern),
+        token,
+        previous_parser.pos,
+      )
       |> Error()
-    [] -> UnexpectedEof(digit_or_decimal_point, previous_parser.pos) |> Error()
+    [] ->
+      UnexpectedEof(
+        Pattern(digit_or_decimal_point_pattern),
+        previous_parser.pos,
+      )
+      |> Error()
   })
 
   case
@@ -212,7 +229,12 @@ pub fn float(
       )
       |> Ok()
     Error(_) ->
-      UnexpectedToken(digit, float_parser.value, float_parser.pos) |> Error()
+      UnexpectedToken(
+        Pattern(digit_pattern),
+        float_parser.value,
+        float_parser.pos,
+      )
+      |> Error()
   }
 }
 
@@ -256,9 +278,31 @@ pub fn whitespace(
   |> from(to(previous_parser.value, whitespace_parser.value))
 }
 
-const digit = Pattern("[0-9]")
+pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
+  use parser <- result.try(prev)
 
-const digit_or_decimal_point = Pattern("[0-9.]")
+  case parser.tokens {
+    [] -> prev
+    [token, ..rest] ->
+      case is_whitespace(token) {
+        False -> prev
+        True ->
+          Parser(
+            rest,
+            increment_parser_position(parser.pos, token),
+            parser.value,
+          )
+          |> Ok()
+          |> skip_whitespace()
+      }
+  }
+}
+
+const digit_pattern = "^[0-9]$"
+
+const digit_or_decimal_point_pattern = "^[0-9.]$"
+
+const whitespace_pattern = "^\\s$"
 
 fn from(prev: Parser(a), initial_value: b) -> ParserResult(b) {
   Parser(prev.tokens, prev.pos, initial_value) |> Ok()
@@ -302,12 +346,10 @@ fn do_token(
 fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^[0-9]$")
-
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case is_digit(token) {
         False -> prev
         True ->
           Parser(
@@ -327,13 +369,11 @@ fn do_float(
 ) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^[0-9.]$")
-
   case parser.tokens {
     [] -> prev
     [".", ..] if after_fraction -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case is_digit_or_decimal_point(token) {
         False -> prev
         True ->
           Parser(
@@ -452,12 +492,10 @@ fn do_repeat(
 fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^\\s$")
-
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case is_whitespace(token) {
         False -> prev
         True ->
           Parser(
@@ -491,4 +529,22 @@ fn increment_parser_position(
     "\n" -> ParserPosition(prev.row + 1, 0)
     _ -> ParserPosition(prev.row, prev.col + 1)
   }
+}
+
+fn matches_pattern(token: String, pattern: String) {
+  let assert Ok(pattern) = regex.from_string(pattern)
+
+  pattern |> regex.check(token)
+}
+
+fn is_digit(token: String) -> Bool {
+  matches_pattern(token, digit_pattern)
+}
+
+fn is_digit_or_decimal_point(token: String) -> Bool {
+  matches_pattern(token, digit_or_decimal_point_pattern)
+}
+
+fn is_whitespace(token: String) -> Bool {
+  matches_pattern(token, whitespace_pattern)
 }

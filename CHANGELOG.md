@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Features
 
+-   Implemented the `skip_whitespace` function.
 -   Implemented the `whitespace` function.
 -   Implemented the `float` function.
 -   Implemented the `repeat` function.
