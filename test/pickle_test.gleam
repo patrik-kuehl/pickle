@@ -216,7 +216,7 @@ pub fn integer_tests() {
       |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Pattern("[0-9]"),
+        Pattern("^[0-9]$"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -228,7 +228,10 @@ pub fn integer_tests() {
         |> pickle.token("abc", pickle.ignore_token)
         |> pickle.integer(fn(_, integer) { integer })
         |> expect.to_be_error()
-        |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 4)))
+        |> expect.to_equal(UnexpectedEof(
+          Pattern("^[0-9]$"),
+          ParserPosition(0, 4),
+        ))
       },
     ),
     it("returns an error when a prior parser failed", fn() {
@@ -246,7 +249,7 @@ pub fn integer_tests() {
       new_parser("", 0)
       |> pickle.integer(fn(_, integer) { integer })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Pattern("[0-9]"), ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(Pattern("^[0-9]$"), ParserPosition(0, 0)))
     }),
   ])
 }
@@ -339,7 +342,7 @@ pub fn float_tests() {
       |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
-        Pattern("[0-9.]"),
+        Pattern("^[0-9.]$"),
         "n",
         ParserPosition(0, 0),
       ))
@@ -352,7 +355,7 @@ pub fn float_tests() {
         |> pickle.float(fn(_, float) { float })
         |> expect.to_be_error()
         |> expect.to_equal(UnexpectedEof(
-          Pattern("[0-9.]"),
+          Pattern("^[0-9.]$"),
           ParserPosition(0, 4),
         ))
       },
@@ -372,7 +375,10 @@ pub fn float_tests() {
       new_parser("", 0.0)
       |> pickle.float(fn(_, float) { float })
       |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedEof(Pattern("[0-9.]"), ParserPosition(0, 0)))
+      |> expect.to_equal(UnexpectedEof(
+        Pattern("^[0-9.]$"),
+        ParserPosition(0, 0),
+      ))
     }),
   ])
 }

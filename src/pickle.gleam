@@ -1,6 +1,6 @@
 import gleam/float
 import gleam/int
-import gleam/regex.{type Regex}
+import gleam/regex
 import gleam/result
 import gleam/string
 
@@ -122,7 +122,7 @@ pub fn integer(
       case rest {
         [] ->
           UnexpectedEof(
-            digit,
+            Pattern(digit_pattern),
             increment_parser_position(previous_parser.pos, token),
           )
           |> Error()
@@ -135,8 +135,12 @@ pub fn integer(
           |> Ok()
           |> do_integer()
       }
-    [token, ..] -> UnexpectedToken(digit, token, previous_parser.pos) |> Error()
-    [] -> UnexpectedEof(digit, previous_parser.pos) |> Error()
+    [token, ..] ->
+      UnexpectedToken(Pattern(digit_pattern), token, previous_parser.pos)
+      |> Error()
+    [] ->
+      UnexpectedEof(Pattern(digit_pattern), previous_parser.pos)
+      |> Error()
   })
 
   case int.parse(integer_parser.value) {
@@ -148,7 +152,11 @@ pub fn integer(
       )
       |> Ok()
     Error(_) ->
-      UnexpectedToken(digit, integer_parser.value, integer_parser.pos)
+      UnexpectedToken(
+        Pattern(digit_pattern),
+        integer_parser.value,
+        integer_parser.pos,
+      )
       |> Error()
   }
 }
@@ -180,7 +188,7 @@ pub fn float(
       case rest {
         [] ->
           UnexpectedEof(
-            digit_or_decimal_point,
+            Pattern(digit_or_decimal_point_pattern),
             increment_parser_position(previous_parser.pos, token),
           )
           |> Error()
@@ -194,9 +202,18 @@ pub fn float(
           |> do_float(False)
       }
     [token, ..] ->
-      UnexpectedToken(digit_or_decimal_point, token, previous_parser.pos)
+      UnexpectedToken(
+        Pattern(digit_or_decimal_point_pattern),
+        token,
+        previous_parser.pos,
+      )
       |> Error()
-    [] -> UnexpectedEof(digit_or_decimal_point, previous_parser.pos) |> Error()
+    [] ->
+      UnexpectedEof(
+        Pattern(digit_or_decimal_point_pattern),
+        previous_parser.pos,
+      )
+      |> Error()
   })
 
   case
@@ -212,7 +229,12 @@ pub fn float(
       )
       |> Ok()
     Error(_) ->
-      UnexpectedToken(digit, float_parser.value, float_parser.pos) |> Error()
+      UnexpectedToken(
+        Pattern(digit_pattern),
+        float_parser.value,
+        float_parser.pos,
+      )
+      |> Error()
   }
 }
 
@@ -262,7 +284,7 @@ pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case whitespace_pattern() |> regex.check(token) {
+      case is_whitespace(token) {
         False -> prev
         True ->
           Parser(
@@ -276,9 +298,11 @@ pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
   }
 }
 
-const digit = Pattern("[0-9]")
+const digit_pattern = "^[0-9]$"
 
-const digit_or_decimal_point = Pattern("[0-9.]")
+const digit_or_decimal_point_pattern = "^[0-9.]$"
+
+const whitespace_pattern = "^\\s$"
 
 fn from(prev: Parser(a), initial_value: b) -> ParserResult(b) {
   Parser(prev.tokens, prev.pos, initial_value) |> Ok()
@@ -322,12 +346,10 @@ fn do_token(
 fn do_integer(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^[0-9]$")
-
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case is_digit(token) {
         False -> prev
         True ->
           Parser(
@@ -347,13 +369,11 @@ fn do_float(
 ) -> ParserResult(String) {
   use parser <- result.try(prev)
 
-  let assert Ok(pattern) = regex.from_string("^[0-9.]$")
-
   case parser.tokens {
     [] -> prev
     [".", ..] if after_fraction -> prev
     [token, ..rest] ->
-      case regex.check(pattern, token) {
+      case is_digit_or_decimal_point(token) {
         False -> prev
         True ->
           Parser(
@@ -475,7 +495,7 @@ fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
   case parser.tokens {
     [] -> prev
     [token, ..rest] ->
-      case whitespace_pattern() |> regex.check(token) {
+      case is_whitespace(token) {
         False -> prev
         True ->
           Parser(
@@ -511,8 +531,20 @@ fn increment_parser_position(
   }
 }
 
-fn whitespace_pattern() -> Regex {
-  let assert Ok(pattern) = regex.from_string("^\\s$")
+fn matches_pattern(token: String, pattern: String) {
+  let assert Ok(pattern) = regex.from_string(pattern)
 
-  pattern
+  pattern |> regex.check(token)
+}
+
+fn is_digit(token: String) -> Bool {
+  matches_pattern(token, digit_pattern)
+}
+
+fn is_digit_or_decimal_point(token: String) -> Bool {
+  matches_pattern(token, digit_or_decimal_point_pattern)
+}
+
+fn is_whitespace(token: String) -> Bool {
+  matches_pattern(token, whitespace_pattern)
 }
