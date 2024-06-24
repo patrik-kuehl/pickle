@@ -24,10 +24,14 @@ pub type ParserFailure {
     pos: ParserPosition,
   )
   UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
+  ValidationError(error_message: String, pos: ParserPosition)
 }
 
 pub type ParserResult(a) =
   Result(Parser(a), ParserFailure)
+
+pub type ParserPredicateCallback(a) =
+  fn(a) -> Bool
 
 pub type ParserValueMapperCallback(a, b) =
   fn(a) -> b
@@ -62,6 +66,19 @@ pub fn parse(
   )
 
   Ok(parser.value)
+}
+
+pub fn guard(
+  prev: ParserResult(a),
+  predicate: ParserPredicateCallback(a),
+  error_message: String,
+) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  case predicate(parser.value) {
+    True -> prev
+    False -> ValidationError(error_message, parser.pos) |> Error()
+  }
 }
 
 pub fn map(
