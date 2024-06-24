@@ -2,6 +2,7 @@ import gleam/string
 import pickle.{
   type Parser, type ParserResult, type ParserTokenMapperCallback, Literal,
   Parser, ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
+  ValidationError,
 }
 import startest.{describe, it}
 import startest/expect
@@ -26,6 +27,44 @@ pub fn parse_tests() {
       })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("a"), ParserPosition(0, 0)))
+    }),
+  ])
+}
+
+pub fn guard_tests() {
+  describe("pickle/guard", [
+    it(
+      "returns a parser with a mapped failure value when the predicate evaluated to false",
+      fn() {
+        let error_message = "expected value to equal \"123\""
+
+        new_parser("abc", "")
+        |> pickle.token("abc", fn(value, token) { value <> token })
+        |> pickle.guard(fn(value) { value == "123" }, error_message)
+        |> expect.to_be_error()
+        |> expect.to_equal(ValidationError(error_message, ParserPosition(0, 3)))
+      },
+    ),
+    it(
+      "returns a parser with no mapped failure value when the predicate evaluated to true",
+      fn() {
+        new_parser("abc", "")
+        |> pickle.token("abc", fn(value, token) { value <> token })
+        |> pickle.guard(fn(value) { value == "abc" }, "error message")
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 3), "abc"))
+      },
+    ),
+    it("returns an error when being provided a failed parser", fn() {
+      new_parser("abc", "")
+      |> pickle.token("abd", fn(value, token) { value <> token })
+      |> pickle.guard(fn(value) { value == "abc" }, "error message")
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("abd"),
+        "abc",
+        ParserPosition(0, 2),
+      ))
     }),
   ])
 }
