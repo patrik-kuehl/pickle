@@ -1,7 +1,7 @@
 import gleam/string
 import pickle.{
-  type Parser, type ParserMapperCallback, type ParserResult, Literal, Parser,
-  ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
+  type Parser, type ParserResult, type ParserTokenMapperCallback, Literal,
+  Parser, ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -26,6 +26,32 @@ pub fn parse_tests() {
       })
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("a"), ParserPosition(0, 0)))
+    }),
+  ])
+}
+
+pub fn map_tests() {
+  describe("pickle/map", [
+    it(
+      "returns a parser with a mapped value when being provided a succeeded parser",
+      fn() {
+        new_parser("abc", "")
+        |> pickle.token("abc", fn(value, token) { value <> token })
+        |> pickle.map(fn(value) { value |> string.split("") })
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 3), ["a", "b", "c"]))
+      },
+    ),
+    it("returns an error when being provided a failed parser", fn() {
+      new_parser("abc", "")
+      |> pickle.token("abd", fn(value, token) { value <> token })
+      |> pickle.map(fn(value) { value |> string.split("") })
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("abd"),
+        "abc",
+        ParserPosition(0, 2),
+      ))
     }),
   ])
 }
@@ -635,7 +661,7 @@ fn new_parser(input: String, initial_value: a) -> ParserResult(a) {
 fn until_including_token(
   prev: ParserResult(a),
   token: String,
-  to: ParserMapperCallback(a, String),
+  to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a) {
   prev
   |> pickle.until(token, to)

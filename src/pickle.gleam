@@ -29,7 +29,10 @@ pub type ParserFailure {
 pub type ParserResult(a) =
   Result(Parser(a), ParserFailure)
 
-pub type ParserMapperCallback(a, b) =
+pub type ParserValueMapperCallback(a, b) =
+  fn(a) -> b
+
+pub type ParserTokenMapperCallback(a, b) =
   fn(a, b) -> a
 
 pub type ParserCombinatorCallback(a) =
@@ -61,10 +64,19 @@ pub fn parse(
   Ok(parser.value)
 }
 
+pub fn map(
+  prev: ParserResult(a),
+  to: ParserValueMapperCallback(a, b),
+) -> ParserResult(b) {
+  use parser <- result.try(prev)
+
+  Parser(parser.tokens, parser.pos, to(parser.value)) |> Ok()
+}
+
 pub fn token(
   prev: ParserResult(a),
   token: String,
-  to: ParserMapperCallback(a, String),
+  to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
@@ -98,7 +110,7 @@ pub fn many(
 
 pub fn integer(
   prev: ParserResult(a),
-  to: ParserMapperCallback(a, Int),
+  to: ParserTokenMapperCallback(a, Int),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
@@ -163,7 +175,7 @@ pub fn integer(
 
 pub fn float(
   prev: ParserResult(a),
-  to: ParserMapperCallback(a, Float),
+  to: ParserTokenMapperCallback(a, Float),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
@@ -241,7 +253,7 @@ pub fn float(
 pub fn until(
   prev: ParserResult(a),
   token: String,
-  to: ParserMapperCallback(a, String),
+  to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
@@ -268,7 +280,7 @@ pub fn repeat(
 
 pub fn whitespace(
   prev: ParserResult(a),
-  to: ParserMapperCallback(a, String),
+  to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
@@ -531,10 +543,11 @@ fn increment_parser_position(
   }
 }
 
-fn matches_pattern(token: String, pattern: String) {
-  let assert Ok(pattern) = regex.from_string(pattern)
-
-  pattern |> regex.check(token)
+fn matches_pattern(token: String, pattern: String) -> Bool {
+  case regex.from_string(pattern) {
+    Error(_) -> False
+    Ok(pattern) -> pattern |> regex.check(token)
+  }
 }
 
 fn is_digit(token: String) -> Bool {
