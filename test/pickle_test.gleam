@@ -697,6 +697,74 @@ pub fn skip_whitespace_tests() {
   ])
 }
 
+pub fn one_of_tests() {
+  describe("pickle/one_of", [
+    it(
+      "returns a parser that parsed multiple tokens when the first given parser callback succeeded",
+      fn() {
+        new_parser("abc", "")
+        |> pickle.one_of([
+          pickle.token(_, "abc", fn(value, token) { value <> token }),
+          pickle.token(_, "abd", fn(value, token) { value <> token }),
+        ])
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 3), "abc"))
+      },
+    ),
+    it(
+      "returns a parser that parsed multiple tokens when the second given parser callback succeeded",
+      fn() {
+        new_parser("abd", "")
+        |> pickle.one_of([
+          pickle.token(_, "abc", fn(value, token) { value <> token }),
+          pickle.token(_, "abd", fn(value, token) { value <> token }),
+        ])
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser([], ParserPosition(0, 3), "abd"))
+      },
+    ),
+    it(
+      "returns a parser that parsed no tokens when not being provided parser callbacks",
+      fn() {
+        new_parser("abc", "")
+        |> pickle.one_of([])
+        |> expect.to_be_ok()
+        |> expect.to_equal(Parser(["a", "b", "c"], ParserPosition(0, 0), ""))
+      },
+    ),
+    it(
+      "returns the error of the last failed parser when no given parser callback succeeded",
+      fn() {
+        new_parser("ade", "")
+        |> pickle.one_of([
+          pickle.token(_, "abc", fn(value, token) { value <> token }),
+          pickle.token(_, "abd", fn(value, token) { value <> token }),
+        ])
+        |> expect.to_be_error()
+        |> expect.to_equal(UnexpectedToken(
+          Literal("abd"),
+          "ad",
+          ParserPosition(0, 1),
+        ))
+      },
+    ),
+    it("returns an error when a prior parser failed", fn() {
+      new_parser("abc", "")
+      |> pickle.token("123", fn(value, token) { value <> token })
+      |> pickle.one_of([
+        pickle.token(_, "abc", fn(value, token) { value <> token }),
+        pickle.token(_, "abd", fn(value, token) { value <> token }),
+      ])
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("123"),
+        "a",
+        ParserPosition(0, 0),
+      ))
+    }),
+  ])
+}
+
 type Pair {
   Pair(left: String, right: String)
 }

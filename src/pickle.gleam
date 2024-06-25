@@ -327,6 +327,15 @@ pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
   }
 }
 
+pub fn one_of(
+  prev: ParserResult(a),
+  parsers: List(ParserCombinatorCallback(a)),
+) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  do_one_of(prev, parser, parsers)
+}
+
 const digit_pattern = "^[0-9]$"
 
 const digit_or_decimal_point_pattern = "^[0-9.]$"
@@ -534,6 +543,21 @@ fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
           )
           |> Ok()
           |> do_whitespace()
+      }
+  }
+}
+
+fn do_one_of(
+  prev: ParserResult(a),
+  entrypoint_parser: Parser(a),
+  parsers: List(ParserCombinatorCallback(a)),
+) -> ParserResult(a) {
+  case parsers {
+    [] -> prev
+    [parser, ..rest] ->
+      case entrypoint_parser |> Ok() |> parser() {
+        Ok(parser) -> Ok(parser)
+        result -> do_one_of(result, entrypoint_parser, rest)
       }
   }
 }
