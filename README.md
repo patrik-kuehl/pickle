@@ -1,3 +1,8 @@
+[![Package Version](https://img.shields.io/hexpm/v/pickle)](https://hex.pm/packages/pickle)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/pickle)
+![Erlang-compatible](https://img.shields.io/badge/target-erlang-a2003e)
+![JavaScript-compatible](https://img.shields.io/badge/target-javascript-f1e05a)
+
 # Pickle 🥒
 
 A parser combinator library for Gleam that supports all targets.
