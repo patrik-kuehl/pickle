@@ -122,7 +122,7 @@ fn create_blank_date() -> Date {
 
 fn parse_dates(prev: ParserResult(List(Date))) -> ParserResult(List(Date)) {
   prev
-  |> pickle.repeat(create_blank_date(), parse_date)
+  |> pickle.many(create_blank_date(), parse_date)
 }
 
 fn parse_date(prev: ParserResult(Date)) -> ParserResult(Date) {

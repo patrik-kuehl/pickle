@@ -194,14 +194,63 @@ pub fn optional_tests() {
 pub fn many_tests() {
   describe("pickle/many", [
     it("returns a parser that parsed multiple tokens", fn() {
+      new_parser("aaab", [])
+      |> pickle.many("", pickle.token(
+        _,
+        "a",
+        fn(value, token) { value <> token },
+      ))
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), ["a", "a", "a"]))
+    }),
+    it("returns a parser that parsed no tokens", fn() {
+      new_parser("abab", [])
+      |> pickle.many("", pickle.token(
+        _,
+        "aa",
+        fn(value, token) { value <> token },
+      ))
+      |> pickle.token("ab", fn(value, token) { [token, ..value] })
+      |> expect.to_be_ok()
+      |> expect.to_equal(Parser(["a", "b"], ParserPosition(0, 2), ["ab"]))
+    }),
+    it("returns an error when a prior parser failed", fn() {
+      new_parser("aaa", [])
+      |> pickle.token("ab", fn(value, token) { [token, ..value] })
+      |> pickle.many("", pickle.token(
+        _,
+        "a",
+        fn(value, token) { value <> token },
+      ))
+      |> expect.to_be_error()
+      |> expect.to_equal(UnexpectedToken(
+        Literal("ab"),
+        "aa",
+        ParserPosition(0, 1),
+      ))
+    }),
+  ])
+}
+
+pub fn many_concat_tests() {
+  describe("pickle/many_concat", [
+    it("returns a parser that parsed multiple tokens", fn() {
       new_parser("aaab", "Characters: ")
-      |> pickle.many(pickle.token(_, "a", fn(value, token) { value <> token }))
+      |> pickle.many_concat(pickle.token(
+        _,
+        "a",
+        fn(value, token) { value <> token },
+      ))
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), "Characters: aaa"))
     }),
     it("returns a parser that parsed no tokens", fn() {
       new_parser("abab", "Characters: ")
-      |> pickle.many(pickle.token(_, "aa", fn(value, token) { value <> token }))
+      |> pickle.many_concat(pickle.token(
+        _,
+        "aa",
+        fn(value, token) { value <> token },
+      ))
       |> pickle.token("ab", fn(value, token) { value <> token })
       |> expect.to_be_ok()
       |> expect.to_equal(Parser(
@@ -213,7 +262,11 @@ pub fn many_tests() {
     it("returns an error when a prior parser failed", fn() {
       new_parser("aaa", "Characters: ")
       |> pickle.token("ab", fn(value, token) { value <> token })
-      |> pickle.many(pickle.token(_, "a", fn(value, token) { value <> token }))
+      |> pickle.many_concat(pickle.token(
+        _,
+        "a",
+        fn(value, token) { value <> token },
+      ))
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("ab"),
@@ -483,7 +536,7 @@ pub fn until_tests() {
       "returns a parser that parsed all tokens until finding the equal sign multiple times",
       fn() {
         new_parser("let test = \"value\";\nlet test2 = \"value2\";", [])
-        |> pickle.many(until_including_token(
+        |> pickle.many_concat(until_including_token(
           _,
           "=",
           fn(value, token) { [token, ..value] },
@@ -543,47 +596,6 @@ pub fn skip_until_tests() {
       |> pickle.skip_until("=")
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
-    }),
-  ])
-}
-
-pub fn repeat_tests() {
-  describe("pickle/repeat", [
-    it("returns a parser that parsed multiple tokens", fn() {
-      new_parser("aaab", [])
-      |> pickle.repeat("", pickle.token(
-        _,
-        "a",
-        fn(value, token) { value <> token },
-      ))
-      |> expect.to_be_ok()
-      |> expect.to_equal(Parser(["b"], ParserPosition(0, 3), ["a", "a", "a"]))
-    }),
-    it("returns a parser that parsed no tokens", fn() {
-      new_parser("abab", [])
-      |> pickle.repeat("", pickle.token(
-        _,
-        "aa",
-        fn(value, token) { value <> token },
-      ))
-      |> pickle.token("ab", fn(value, token) { [token, ..value] })
-      |> expect.to_be_ok()
-      |> expect.to_equal(Parser(["a", "b"], ParserPosition(0, 2), ["ab"]))
-    }),
-    it("returns an error when a prior parser failed", fn() {
-      new_parser("aaa", [])
-      |> pickle.token("ab", fn(value, token) { [token, ..value] })
-      |> pickle.repeat("", pickle.token(
-        _,
-        "a",
-        fn(value, token) { value <> token },
-      ))
-      |> expect.to_be_error()
-      |> expect.to_equal(UnexpectedToken(
-        Literal("ab"),
-        "aa",
-        ParserPosition(0, 1),
-      ))
     }),
   ])
 }
