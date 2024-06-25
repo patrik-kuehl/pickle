@@ -44,7 +44,7 @@ fn parse_invoices(
 ) -> ParserResult(List(Invoice)) {
   prev
   |> skip_header()
-  |> pickle.repeat(create_blank_invoice(), parse_invoice)
+  |> pickle.many(create_blank_invoice(), parse_invoice)
 }
 
 fn skip_header(prev: ParserResult(List(Invoice))) -> ParserResult(List(Invoice)) {

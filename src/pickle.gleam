@@ -116,12 +116,20 @@ pub fn optional(
 }
 
 pub fn many(
+  prev: ParserResult(List(a)),
+  initial_value: a,
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(List(a)) {
+  do_many(prev, initial_value, parser)
+}
+
+pub fn many_concat(
   prev: ParserResult(a),
   parser: ParserCombinatorCallback(a),
 ) -> ParserResult(a) {
   case parser(prev) {
     Error(_) -> prev
-    result -> many(result, parser)
+    result -> many_concat(result, parser)
   }
 }
 
@@ -287,14 +295,6 @@ pub fn skip_until(prev: ParserResult(a), token: String) -> ParserResult(a) {
   do_skip_until(prev, token, token |> string.split(""))
 }
 
-pub fn repeat(
-  prev: ParserResult(List(a)),
-  initial_value: a,
-  parser: ParserCombinatorCallback(a),
-) -> ParserResult(List(a)) {
-  do_repeat(prev, initial_value, parser)
-}
-
 pub fn whitespace(
   prev: ParserResult(a),
   to: ParserTokenMapperCallback(a, String),
@@ -325,6 +325,15 @@ pub fn skip_whitespace(prev: ParserResult(a)) -> ParserResult(a) {
           |> skip_whitespace()
       }
   }
+}
+
+pub fn one_of(
+  prev: ParserResult(a),
+  parsers: List(ParserCombinatorCallback(a)),
+) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  do_one_of(prev, parser, parsers)
 }
 
 const digit_pattern = "^[0-9]$"
@@ -369,6 +378,24 @@ fn do_token(
           |> Ok()
           |> do_token(expected_rest)
       }
+  }
+}
+
+fn do_many(
+  prev: ParserResult(List(a)),
+  initial_value: a,
+  parser: ParserCombinatorCallback(a),
+) -> ParserResult(List(a)) {
+  use previous_parser <- result.try(prev)
+
+  case parser(previous_parser |> from(initial_value)) {
+    Error(_) -> prev
+    Ok(many_parser) ->
+      do_many(
+        many_parser |> from([many_parser.value, ..previous_parser.value]),
+        initial_value,
+        parser,
+      )
   }
 }
 
@@ -500,24 +527,6 @@ fn do_skip_until(
   }
 }
 
-fn do_repeat(
-  prev: ParserResult(List(a)),
-  initial_value: a,
-  parser: ParserCombinatorCallback(a),
-) -> ParserResult(List(a)) {
-  use previous_parser <- result.try(prev)
-
-  case parser(previous_parser |> from(initial_value)) {
-    Error(_) -> prev
-    Ok(repeat_parser) ->
-      do_repeat(
-        repeat_parser |> from([repeat_parser.value, ..previous_parser.value]),
-        initial_value,
-        parser,
-      )
-  }
-}
-
 fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
   use parser <- result.try(prev)
 
@@ -534,6 +543,21 @@ fn do_whitespace(prev: ParserResult(String)) -> ParserResult(String) {
           )
           |> Ok()
           |> do_whitespace()
+      }
+  }
+}
+
+fn do_one_of(
+  prev: ParserResult(a),
+  entrypoint_parser: Parser(a),
+  parsers: List(ParserCombinatorCallback(a)),
+) -> ParserResult(a) {
+  case parsers {
+    [] -> prev
+    [parser, ..rest] ->
+      case entrypoint_parser |> Ok() |> parser() {
+        Ok(parser) -> Ok(parser)
+        result -> do_one_of(result, entrypoint_parser, rest)
       }
   }
 }
