@@ -63,7 +63,7 @@ You can refer to the [npm scripts](#npm-scripts) section to find out how to upda
 
 |            Dependency            | Version  |
 | :------------------------------: | :------: |
-|   [Gleam](https://gleam.run/)    | \>= 1.1  |
+|   [Gleam](https://gleam.run/)    |  == 1.2  |
 |      [Bun](https://bun.sh/)      | \>= 1.0  |
 |    [Deno](https://deno.com/)     | \>= 1.0  |
 | [Node.js](https://nodejs.org/)\* | \>= 20.0 |
