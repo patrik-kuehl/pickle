@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Features
 
+-   Implemented the `one_of` function.
 -   Implemented the `guard` function.
 -   Implemented the `map` function.
 -   Implemented the `skip_whitespace` function.
