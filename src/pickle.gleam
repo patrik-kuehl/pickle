@@ -116,21 +116,12 @@ pub fn optional(
 }
 
 pub fn many(
-  prev: ParserResult(List(a)),
-  initial_value: a,
-  parser: ParserCombinatorCallback(a),
-) -> ParserResult(List(a)) {
-  do_many(prev, initial_value, parser)
-}
-
-pub fn many_concat(
   prev: ParserResult(a),
-  parser: ParserCombinatorCallback(a),
+  initial_value: b,
+  parser: ParserCombinatorCallback(b),
+  to: ParserTokenMapperCallback(a, b),
 ) -> ParserResult(a) {
-  case parser(prev) {
-    Error(_) -> prev
-    result -> many_concat(result, parser)
-  }
+  do_many(prev, initial_value, parser, to)
 }
 
 pub fn integer(
@@ -336,6 +327,15 @@ pub fn one_of(
   do_one_of(prev, parser, parsers)
 }
 
+pub fn return(
+  prev: ParserResult(a),
+  to: ParserValueMapperCallback(a, a),
+) -> ParserResult(a) {
+  use parser <- result.try(prev)
+
+  from(parser, to(parser.value))
+}
+
 const digit_pattern = "^[0-9]$"
 
 const digit_or_decimal_point_pattern = "^[0-9.]$"
@@ -382,19 +382,21 @@ fn do_token(
 }
 
 fn do_many(
-  prev: ParserResult(List(a)),
-  initial_value: a,
-  parser: ParserCombinatorCallback(a),
-) -> ParserResult(List(a)) {
+  prev: ParserResult(a),
+  initial_value: b,
+  parser: ParserCombinatorCallback(b),
+  to: ParserTokenMapperCallback(a, b),
+) -> ParserResult(a) {
   use previous_parser <- result.try(prev)
 
   case parser(previous_parser |> from(initial_value)) {
     Error(_) -> prev
     Ok(many_parser) ->
       do_many(
-        many_parser |> from([many_parser.value, ..previous_parser.value]),
+        many_parser |> from(to(previous_parser.value, many_parser.value)),
         initial_value,
         parser,
+        to,
       )
   }
 }

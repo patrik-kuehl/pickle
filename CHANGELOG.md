@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+-   Added `pickle/return` to modify the parser's value without consuming any tokens.
 -   Added `pickle/one_of` to parse tokens by trying a set of given parsers.
 -   Added `pickle/guard` to validate the value of the parser.
 -   Added `pickle/map` to map the value of the parser.
@@ -18,8 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/integer` to parse tokens as an integer.
 -   Added `pickle/skip_until` to skip zero to `n` tokens until reaching a specific token.
 -   Added `pickle/until` to parse zero to `n` tokens until reaching a specific token.
--   Added `pickle/many_concat` to parse zero to `n` tokens until the given parser fails.
--   Added `pickle/many` to parse zero to `n` tokens until the given parser fails.
+-   Added `pickle/many` to parse tokens zero to `n` times until the given parser fails.
 -   Added `pickle/optional` to ignore and backtrack the parser in case the given parser fails.
 -   Added `pickle/token` to parse a specific token.
 -   Added `pickle/parse` to parse a set of tokens via a given parser.
