@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+-   Added `pickle/return` to modify the parser's value without consuming any tokens.
 -   Added `pickle/one_of` to parse tokens by trying a set of given parsers.
 -   Added `pickle/guard` to validate the value of the parser.
 -   Added `pickle/map` to map the value of the parser.
