@@ -39,12 +39,16 @@ fn create_blank_invoice() -> Invoice {
   Invoice(0, "", 0.0)
 }
 
+fn prepend_invoice(invoices: List(Invoice), invoice: Invoice) -> List(Invoice) {
+  [invoice, ..invoices]
+}
+
 fn parse_invoices(
   prev: ParserResult(List(Invoice)),
 ) -> ParserResult(List(Invoice)) {
   prev
   |> skip_header()
-  |> pickle.many(create_blank_invoice(), parse_invoice)
+  |> pickle.many(create_blank_invoice(), parse_invoice, prepend_invoice)
 }
 
 fn skip_header(prev: ParserResult(List(Invoice))) -> ParserResult(List(Invoice)) {
