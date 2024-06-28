@@ -1,8 +1,7 @@
 import gleam/string
 import pickle.{
-  type Parser, type ParserResult, type ParserTokenMapperCallback, Literal,
-  Parser, ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
-  ValidationError,
+  type Parser, type ParserResult, type ParserTokenMapperCallback, GuardError,
+  Literal, Parser, ParserPosition, Pattern, UnexpectedEof, UnexpectedToken,
 }
 import startest.{describe, it}
 import startest/expect
@@ -42,7 +41,7 @@ pub fn guard_tests() {
         |> pickle.token("abc", fn(value, token) { value <> token })
         |> pickle.guard(fn(value) { value == "123" }, error_message)
         |> expect.to_be_error()
-        |> expect.to_equal(ValidationError(error_message, ParserPosition(0, 3)))
+        |> expect.to_equal(GuardError(error_message, ParserPosition(0, 3)))
       },
     ),
     it(
@@ -751,15 +750,15 @@ type Point(a) {
   Point(x: a, y: a)
 }
 
-fn new_parser(input: String, initial_value: a) -> ParserResult(a) {
+fn new_parser(input: String, initial_value: a) -> ParserResult(a, b) {
   Ok(Parser(input |> string.split(""), ParserPosition(0, 0), initial_value))
 }
 
 fn until_including_token(
-  prev: ParserResult(a),
+  prev: ParserResult(a, b),
   token: String,
   to: ParserTokenMapperCallback(a, String),
-) -> ParserResult(a) {
+) -> ParserResult(a, b) {
   prev
   |> pickle.until(token, to)
   |> pickle.token(token, pickle.ignore_token)
