@@ -724,14 +724,14 @@ pub fn return_tests() {
     it("returns a parser with a modified value", fn() {
       new_parser("abc", [])
       |> pickle.token("abc", fn(value, token) { [token, ..value] })
-      |> pickle.return(fn(value) { ["123", ..value] })
+      |> pickle.return(20)
       |> expect.to_be_ok()
-      |> expect.to_equal(Parser([], ParserPosition(0, 3), ["123", "abc"]))
+      |> expect.to_equal(Parser([], ParserPosition(0, 3), 20))
     }),
     it("returns an error when a prior parser failed", fn() {
       new_parser("abc", [])
       |> pickle.token("abd", fn(value, token) { [token, ..value] })
-      |> pickle.return(fn(value) { ["123", ..value] })
+      |> pickle.return(10)
       |> expect.to_be_error()
       |> expect.to_equal(UnexpectedToken(
         Literal("abd"),

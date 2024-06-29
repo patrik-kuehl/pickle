@@ -331,13 +331,10 @@ pub fn one_of(
   do_one_of(prev, parser, parsers)
 }
 
-pub fn return(
-  prev: ParserResult(a, b),
-  to: ParserValueMapperCallback(a, a),
-) -> ParserResult(a, b) {
+pub fn return(prev: ParserResult(a, b), value: c) -> ParserResult(c, b) {
   use parser <- result.try(prev)
 
-  parser_from(parser, to(parser.value))
+  parser_from(parser, value)
 }
 
 const digit_pattern = "^[0-9]$"
