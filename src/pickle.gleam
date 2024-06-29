@@ -98,11 +98,11 @@ pub fn token(
   use previous_parser <- result.try(prev)
 
   use token_parser <- result.try(do_token(
-    from(previous_parser, ""),
+    parser_from(previous_parser, ""),
     string.split(token, ""),
   ))
 
-  from(token_parser, to(previous_parser.value, token_parser.value))
+  parser_from(token_parser, to(previous_parser.value, token_parser.value))
 }
 
 pub fn optional(
@@ -274,12 +274,12 @@ pub fn until(
   use previous_parser <- result.try(prev)
 
   use until_parser <- result.try(do_until(
-    from(previous_parser, ""),
+    parser_from(previous_parser, ""),
     token,
     string.split(token, ""),
   ))
 
-  from(until_parser, to(previous_parser.value, until_parser.value))
+  parser_from(until_parser, to(previous_parser.value, until_parser.value))
 }
 
 pub fn skip_until(prev: ParserResult(a, b), token: String) -> ParserResult(a, b) {
@@ -293,10 +293,13 @@ pub fn whitespace(
   use previous_parser <- result.try(prev)
 
   use whitespace_parser <- result.try(
-    from(previous_parser, "") |> do_whitespace(),
+    parser_from(previous_parser, "") |> do_whitespace(),
   )
 
-  from(whitespace_parser, to(previous_parser.value, whitespace_parser.value))
+  parser_from(
+    whitespace_parser,
+    to(previous_parser.value, whitespace_parser.value),
+  )
 }
 
 pub fn skip_whitespace(prev: ParserResult(a, b)) -> ParserResult(a, b) {
@@ -334,7 +337,7 @@ pub fn return(
 ) -> ParserResult(a, b) {
   use parser <- result.try(prev)
 
-  from(parser, to(parser.value))
+  parser_from(parser, to(parser.value))
 }
 
 const digit_pattern = "^[0-9]$"
@@ -343,7 +346,7 @@ const digit_or_decimal_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
 
-fn from(prev: Parser(a), initial_value: b) -> ParserResult(b, c) {
+fn parser_from(prev: Parser(a), initial_value: b) -> ParserResult(b, c) {
   Parser(prev.tokens, prev.pos, initial_value) |> Ok()
 }
 
@@ -390,11 +393,11 @@ fn do_many(
 ) -> ParserResult(a, b) {
   use previous_parser <- result.try(prev)
 
-  case parser(previous_parser |> from(initial_value)) {
+  case parser(previous_parser |> parser_from(initial_value)) {
     Error(_) -> prev
     Ok(many_parser) ->
       do_many(
-        from(many_parser, to(previous_parser.value, many_parser.value)),
+        parser_from(many_parser, to(previous_parser.value, many_parser.value)),
         initial_value,
         parser,
         to,
