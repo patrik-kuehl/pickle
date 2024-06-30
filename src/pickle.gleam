@@ -57,12 +57,12 @@ pub fn ignore_float(value: a, _: Float) -> a {
 pub fn parse(
   input: String,
   initial_value: a,
-  parser: ParserCombinatorCallback(a, b),
+  callback: ParserCombinatorCallback(a, b),
 ) -> Result(a, ParserFailure(b)) {
   use parser <- result.try(
     Parser(string.split(input, ""), ParserPosition(0, 0), initial_value)
     |> Ok()
-    |> parser(),
+    |> callback(),
   )
 
   Ok(parser.value)
@@ -107,9 +107,9 @@ pub fn token(
 
 pub fn optional(
   prev: ParserResult(a, b),
-  parser: ParserCombinatorCallback(a, b),
+  callback: ParserCombinatorCallback(a, b),
 ) -> ParserResult(a, b) {
-  case parser(prev) {
+  case callback(prev) {
     Error(_) -> prev
     result -> result
   }
@@ -118,10 +118,10 @@ pub fn optional(
 pub fn many(
   prev: ParserResult(a, b),
   initial_value: c,
-  parser: ParserCombinatorCallback(c, b),
+  callback: ParserCombinatorCallback(c, b),
   to: ParserTokenMapperCallback(a, c),
 ) -> ParserResult(a, b) {
-  do_many(prev, initial_value, parser, to)
+  do_many(prev, initial_value, callback, to)
 }
 
 pub fn integer(
@@ -324,11 +324,11 @@ pub fn skip_whitespace(prev: ParserResult(a, b)) -> ParserResult(a, b) {
 
 pub fn one_of(
   prev: ParserResult(a, b),
-  parsers: List(ParserCombinatorCallback(a, b)),
+  callbacks: List(ParserCombinatorCallback(a, b)),
 ) -> ParserResult(a, b) {
   use parser <- result.try(prev)
 
-  do_one_of(prev, parser, parsers)
+  do_one_of(prev, parser, callbacks)
 }
 
 pub fn return(prev: ParserResult(a, b), value: c) -> ParserResult(c, b) {
@@ -385,18 +385,18 @@ fn do_token(
 fn do_many(
   prev: ParserResult(a, b),
   initial_value: c,
-  parser: ParserCombinatorCallback(c, b),
+  callback: ParserCombinatorCallback(c, b),
   to: ParserTokenMapperCallback(a, c),
 ) -> ParserResult(a, b) {
   use previous_parser <- result.try(prev)
 
-  case parser(previous_parser |> parser_from(initial_value)) {
+  case callback(previous_parser |> parser_from(initial_value)) {
     Error(_) -> prev
     Ok(many_parser) ->
       do_many(
         parser_from(many_parser, to(previous_parser.value, many_parser.value)),
         initial_value,
-        parser,
+        callback,
         to,
       )
   }
@@ -553,9 +553,9 @@ fn do_whitespace(prev: ParserResult(String, a)) -> ParserResult(String, a) {
 fn do_one_of(
   prev: ParserResult(a, b),
   entrypoint_parser: Parser(a),
-  parsers: List(ParserCombinatorCallback(a, b)),
+  callbacks: List(ParserCombinatorCallback(a, b)),
 ) -> ParserResult(a, b) {
-  case parsers {
+  case callbacks {
     [] -> prev
     [parser, ..rest] ->
       case entrypoint_parser |> Ok() |> parser() {
