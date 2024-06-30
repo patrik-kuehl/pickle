@@ -14,6 +14,7 @@ pub type Parser(a) {
 pub type ExpectedToken {
   Literal(String)
   Pattern(String)
+  Eof
 }
 
 pub type ParserFailure(a) {
@@ -89,7 +90,7 @@ pub fn map(
 ) -> ParserResult(c, b) {
   case prev {
     Error(failure) -> Error(failure)
-    Ok(parser) -> Parser(parser.tokens, parser.pos, to(parser.value)) |> Ok()
+    Ok(parser) -> parser_from(parser, to(parser.value))
   }
 }
 
@@ -337,6 +338,17 @@ pub fn return(prev: ParserResult(a, b), value: c) -> ParserResult(c, b) {
   }
 }
 
+pub fn eof(prev: ParserResult(a, b)) -> ParserResult(a, b) {
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [token, ..] -> UnexpectedToken(Eof, token, parser.pos) |> Error()
+        [] -> prev
+      }
+  }
+}
+
 const digit_pattern = "^[0-9]$"
 
 const digit_or_decimal_point_pattern = "^[0-9.]$"
@@ -393,7 +405,7 @@ fn do_many(
   case prev {
     Error(failure) -> Error(failure)
     Ok(previous_parser) ->
-      case callback(previous_parser |> parser_from(initial_value)) {
+      case parser_from(previous_parser, initial_value) |> callback() {
         Error(_) -> prev
         Ok(many_parser) ->
           do_many(
@@ -611,12 +623,7 @@ fn parse_string_to_integer(
           )
           |> Error()
         Ok(integer) ->
-          Parser(
-            integer_parser.tokens,
-            integer_parser.pos,
-            to(entrypoint_parser.value, integer),
-          )
-          |> Ok()
+          parser_from(integer_parser, to(entrypoint_parser.value, integer))
       }
   }
 }
@@ -642,12 +649,7 @@ fn parse_string_to_float(
           )
           |> Error()
         Ok(float) ->
-          Parser(
-            float_parser.tokens,
-            float_parser.pos,
-            to(entrypoint_parser.value, float),
-          )
-          |> Ok()
+          parser_from(float_parser, to(entrypoint_parser.value, float))
       }
   }
 }
