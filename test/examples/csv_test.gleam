@@ -35,6 +35,12 @@ type Invoice {
   Invoice(number: Int, recipient: String, total: Float)
 }
 
+type InvoicesParserResult =
+  ParserResult(List(Invoice), Nil)
+
+type InvoiceParserResult =
+  ParserResult(Invoice, Nil)
+
 fn create_blank_invoice() -> Invoice {
   Invoice(0, "", 0.0)
 }
@@ -43,38 +49,30 @@ fn prepend_invoice(invoices: List(Invoice), invoice: Invoice) -> List(Invoice) {
   [invoice, ..invoices]
 }
 
-fn parse_invoices(
-  prev: ParserResult(List(Invoice), Nil),
-) -> ParserResult(List(Invoice), Nil) {
+fn parse_invoices(prev: InvoicesParserResult) -> InvoicesParserResult {
   prev
   |> skip_header()
   |> pickle.many(create_blank_invoice(), parse_invoice, prepend_invoice)
 }
 
-fn skip_header(
-  prev: ParserResult(List(Invoice), Nil),
-) -> ParserResult(List(Invoice), Nil) {
+fn skip_header(prev: InvoicesParserResult) -> InvoicesParserResult {
   prev |> pickle.skip_until("\n") |> pickle.token("\n", pickle.ignore_token)
 }
 
-fn parse_invoice(prev: ParserResult(Invoice, Nil)) -> ParserResult(Invoice, Nil) {
+fn parse_invoice(prev: InvoiceParserResult) -> InvoiceParserResult {
   prev
   |> parse_invoice_number()
   |> parse_invoice_recipient()
   |> parse_invoice_total()
 }
 
-fn parse_invoice_number(
-  prev: ParserResult(Invoice, Nil),
-) -> ParserResult(Invoice, Nil) {
+fn parse_invoice_number(prev: InvoiceParserResult) -> InvoiceParserResult {
   prev
   |> pickle.integer(fn(invoice, number) { Invoice(..invoice, number: number) })
   |> pickle.token(",", pickle.ignore_token)
 }
 
-fn parse_invoice_recipient(
-  prev: ParserResult(Invoice, Nil),
-) -> ParserResult(Invoice, Nil) {
+fn parse_invoice_recipient(prev: InvoiceParserResult) -> InvoiceParserResult {
   prev
   |> pickle.until(",", fn(invoice, recipient) {
     Invoice(..invoice, recipient: recipient)
@@ -82,9 +80,7 @@ fn parse_invoice_recipient(
   |> pickle.token(",", pickle.ignore_token)
 }
 
-fn parse_invoice_total(
-  prev: ParserResult(Invoice, Nil),
-) -> ParserResult(Invoice, Nil) {
+fn parse_invoice_total(prev: InvoiceParserResult) -> InvoiceParserResult {
   prev
   |> pickle.float(fn(invoice, total) { Invoice(..invoice, total: total) })
   |> pickle.token("\n", pickle.ignore_token)
