@@ -1,7 +1,6 @@
 import gleam/float
 import gleam/int
 import gleam/regex
-import gleam/result
 import gleam/string
 
 pub type ParserPosition {
@@ -59,13 +58,14 @@ pub fn parse(
   initial_value: a,
   callback: ParserCombinatorCallback(a, b),
 ) -> Result(a, ParserFailure(b)) {
-  use parser <- result.try(
+  case
     Parser(string.split(input, ""), ParserPosition(0, 0), initial_value)
     |> Ok()
-    |> callback(),
-  )
-
-  Ok(parser.value)
+    |> callback()
+  {
+    Error(failure) -> Error(failure)
+    Ok(parser) -> Ok(parser.value)
+  }
 }
 
 pub fn guard(
@@ -73,11 +73,13 @@ pub fn guard(
   predicate: ParserPredicateCallback(a),
   error: b,
 ) -> ParserResult(a, b) {
-  use parser <- result.try(prev)
-
-  case predicate(parser.value) {
-    True -> prev
-    False -> GuardError(error, parser.pos) |> Error()
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case predicate(parser.value) {
+        False -> GuardError(error, parser.pos) |> Error()
+        True -> prev
+      }
   }
 }
 
@@ -85,9 +87,10 @@ pub fn map(
   prev: ParserResult(a, b),
   to: ParserValueMapperCallback(a, c),
 ) -> ParserResult(c, b) {
-  use parser <- result.try(prev)
-
-  Parser(parser.tokens, parser.pos, to(parser.value)) |> Ok()
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) -> Parser(parser.tokens, parser.pos, to(parser.value)) |> Ok()
+  }
 }
 
 pub fn token(
@@ -95,14 +98,21 @@ pub fn token(
   token: String,
   to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  use token_parser <- result.try(do_token(
-    parser_from(previous_parser, ""),
-    string.split(token, ""),
-  ))
-
-  parser_from(token_parser, to(previous_parser.value, token_parser.value))
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case
+        parser_from(previous_parser, "")
+        |> do_token(string.split(token, ""))
+      {
+        Error(failure) -> Error(failure)
+        Ok(token_parser) ->
+          parser_from(
+            token_parser,
+            to(previous_parser.value, token_parser.value),
+          )
+      }
+  }
 }
 
 pub fn optional(
@@ -128,64 +138,55 @@ pub fn integer(
   prev: ParserResult(a, b),
   to: ParserTokenMapperCallback(a, Int),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  use integer_parser <- result.try(case previous_parser.tokens {
-    [token, ..rest]
-      if token == "0"
-      || token == "1"
-      || token == "2"
-      || token == "3"
-      || token == "4"
-      || token == "5"
-      || token == "6"
-      || token == "7"
-      || token == "8"
-      || token == "9"
-    ->
-      Parser(rest, increment_parser_position(previous_parser.pos, token), token)
-      |> Ok()
-      |> do_integer()
-    [token, ..rest] if token == "+" || token == "-" ->
-      case rest {
-        [] ->
-          UnexpectedEof(
-            Pattern(digit_pattern),
-            increment_parser_position(previous_parser.pos, token),
-          )
-          |> Error()
-        tokens ->
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case previous_parser.tokens {
+        [token, ..rest]
+          if token == "0"
+          || token == "1"
+          || token == "2"
+          || token == "3"
+          || token == "4"
+          || token == "5"
+          || token == "6"
+          || token == "7"
+          || token == "8"
+          || token == "9"
+        ->
           Parser(
-            tokens,
+            rest,
             increment_parser_position(previous_parser.pos, token),
             token,
           )
           |> Ok()
           |> do_integer()
+          |> parse_string_to_integer(previous_parser, to)
+        [token, ..rest] if token == "+" || token == "-" ->
+          case rest {
+            [] ->
+              UnexpectedEof(
+                Pattern(digit_pattern),
+                increment_parser_position(previous_parser.pos, token),
+              )
+              |> Error()
+            tokens ->
+              Parser(
+                tokens,
+                increment_parser_position(previous_parser.pos, token),
+                token,
+              )
+              |> Ok()
+              |> do_integer()
+              |> parse_string_to_integer(previous_parser, to)
+          }
+        [token, ..] ->
+          UnexpectedToken(Pattern(digit_pattern), token, previous_parser.pos)
+          |> Error()
+        [] ->
+          UnexpectedEof(Pattern(digit_pattern), previous_parser.pos)
+          |> Error()
       }
-    [token, ..] ->
-      UnexpectedToken(Pattern(digit_pattern), token, previous_parser.pos)
-      |> Error()
-    [] ->
-      UnexpectedEof(Pattern(digit_pattern), previous_parser.pos)
-      |> Error()
-  })
-
-  case int.parse(integer_parser.value) {
-    Ok(integer) ->
-      Parser(
-        integer_parser.tokens,
-        integer_parser.pos,
-        to(previous_parser.value, integer),
-      )
-      |> Ok()
-    Error(_) ->
-      UnexpectedToken(
-        Pattern(digit_pattern),
-        integer_parser.value,
-        integer_parser.pos,
-      )
-      |> Error()
   }
 }
 
@@ -193,76 +194,63 @@ pub fn float(
   prev: ParserResult(a, b),
   to: ParserTokenMapperCallback(a, Float),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  use float_parser <- result.try(case previous_parser.tokens {
-    [token, ..rest]
-      if token == "0"
-      || token == "1"
-      || token == "2"
-      || token == "3"
-      || token == "4"
-      || token == "5"
-      || token == "6"
-      || token == "7"
-      || token == "8"
-      || token == "9"
-      || token == "."
-    ->
-      Parser(rest, increment_parser_position(previous_parser.pos, token), token)
-      |> Ok()
-      |> do_float(False)
-    [token, ..rest] if token == "+" || token == "-" ->
-      case rest {
-        [] ->
-          UnexpectedEof(
-            Pattern(digit_or_decimal_point_pattern),
-            increment_parser_position(previous_parser.pos, token),
-          )
-          |> Error()
-        tokens ->
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case previous_parser.tokens {
+        [token, ..rest]
+          if token == "0"
+          || token == "1"
+          || token == "2"
+          || token == "3"
+          || token == "4"
+          || token == "5"
+          || token == "6"
+          || token == "7"
+          || token == "8"
+          || token == "9"
+          || token == "."
+        ->
           Parser(
-            tokens,
+            rest,
             increment_parser_position(previous_parser.pos, token),
             token,
           )
           |> Ok()
           |> do_float(False)
+          |> parse_string_to_float(previous_parser, to)
+        [token, ..rest] if token == "+" || token == "-" ->
+          case rest {
+            [] ->
+              UnexpectedEof(
+                Pattern(digit_or_decimal_point_pattern),
+                increment_parser_position(previous_parser.pos, token),
+              )
+              |> Error()
+            tokens ->
+              Parser(
+                tokens,
+                increment_parser_position(previous_parser.pos, token),
+                token,
+              )
+              |> Ok()
+              |> do_float(False)
+              |> parse_string_to_float(previous_parser, to)
+          }
+        [token, ..] ->
+          UnexpectedToken(
+            Pattern(digit_or_decimal_point_pattern),
+            token,
+            previous_parser.pos,
+          )
+          |> Error()
+        [] ->
+          UnexpectedEof(
+            Pattern(digit_or_decimal_point_pattern),
+            previous_parser.pos,
+          )
+          |> Error()
       }
-    [token, ..] ->
-      UnexpectedToken(
-        Pattern(digit_or_decimal_point_pattern),
-        token,
-        previous_parser.pos,
-      )
-      |> Error()
-    [] ->
-      UnexpectedEof(
-        Pattern(digit_or_decimal_point_pattern),
-        previous_parser.pos,
-      )
-      |> Error()
-  })
-
-  case
-    float_parser.value
-    |> add_integral_part_to_string_float_value()
-    |> float.parse()
-  {
-    Ok(float) ->
-      Parser(
-        float_parser.tokens,
-        float_parser.pos,
-        to(previous_parser.value, float),
-      )
-      |> Ok()
-    Error(_) ->
-      UnexpectedToken(
-        Pattern(digit_pattern),
-        float_parser.value,
-        float_parser.pos,
-      )
-      |> Error()
   }
 }
 
@@ -271,15 +259,21 @@ pub fn until(
   token: String,
   to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  use until_parser <- result.try(do_until(
-    parser_from(previous_parser, ""),
-    token,
-    string.split(token, ""),
-  ))
-
-  parser_from(until_parser, to(previous_parser.value, until_parser.value))
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case
+        parser_from(previous_parser, "")
+        |> do_until(token, string.split(token, ""))
+      {
+        Error(failure) -> Error(failure)
+        Ok(until_parser) ->
+          parser_from(
+            until_parser,
+            to(previous_parser.value, until_parser.value),
+          )
+      }
+  }
 }
 
 pub fn skip_until(prev: ParserResult(a, b), token: String) -> ParserResult(a, b) {
@@ -290,34 +284,38 @@ pub fn whitespace(
   prev: ParserResult(a, b),
   to: ParserTokenMapperCallback(a, String),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  use whitespace_parser <- result.try(
-    parser_from(previous_parser, "") |> do_whitespace(),
-  )
-
-  parser_from(
-    whitespace_parser,
-    to(previous_parser.value, whitespace_parser.value),
-  )
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case parser_from(previous_parser, "") |> do_whitespace() {
+        Error(failure) -> Error(failure)
+        Ok(whitespace_parser) ->
+          parser_from(
+            whitespace_parser,
+            to(previous_parser.value, whitespace_parser.value),
+          )
+      }
+  }
 }
 
 pub fn skip_whitespace(prev: ParserResult(a, b)) -> ParserResult(a, b) {
-  use parser <- result.try(prev)
-
-  case parser.tokens {
-    [] -> prev
-    [token, ..rest] ->
-      case is_whitespace(token) {
-        False -> prev
-        True ->
-          Parser(
-            rest,
-            increment_parser_position(parser.pos, token),
-            parser.value,
-          )
-          |> Ok()
-          |> skip_whitespace()
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [] -> prev
+        [token, ..rest] ->
+          case is_whitespace(token) {
+            False -> prev
+            True ->
+              Parser(
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value,
+              )
+              |> Ok()
+              |> skip_whitespace()
+          }
       }
   }
 }
@@ -326,15 +324,17 @@ pub fn one_of(
   prev: ParserResult(a, b),
   callbacks: List(ParserCombinatorCallback(a, b)),
 ) -> ParserResult(a, b) {
-  use parser <- result.try(prev)
-
-  do_one_of(prev, parser, callbacks)
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) -> do_one_of(prev, parser, callbacks)
+  }
 }
 
 pub fn return(prev: ParserResult(a, b), value: c) -> ParserResult(c, b) {
-  use parser <- result.try(prev)
-
-  parser_from(parser, value)
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) -> parser_from(parser, value)
+  }
 }
 
 const digit_pattern = "^[0-9]$"
@@ -351,33 +351,35 @@ fn do_token(
   prev: ParserResult(String, a),
   expected_tokens: List(String),
 ) -> ParserResult(String, a) {
-  use parser <- result.try(prev)
-
-  case expected_tokens {
-    [] -> prev
-    [expected_token, ..expected_rest] ->
-      case parser.tokens {
-        [] ->
-          UnexpectedEof(
-            Literal(parser.value <> string.join(expected_tokens, "")),
-            parser.pos,
-          )
-          |> Error()
-        [actual_token, ..] if expected_token != actual_token ->
-          UnexpectedToken(
-            Literal(parser.value <> string.join(expected_tokens, "")),
-            parser.value <> actual_token,
-            parser.pos,
-          )
-          |> Error()
-        [actual_token, ..actual_rest] ->
-          Parser(
-            actual_rest,
-            increment_parser_position(parser.pos, actual_token),
-            parser.value <> actual_token,
-          )
-          |> Ok()
-          |> do_token(expected_rest)
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case expected_tokens {
+        [] -> prev
+        [expected_token, ..expected_rest] ->
+          case parser.tokens {
+            [] ->
+              UnexpectedEof(
+                Literal(parser.value <> string.join(expected_tokens, "")),
+                parser.pos,
+              )
+              |> Error()
+            [actual_token, ..] if expected_token != actual_token ->
+              UnexpectedToken(
+                Literal(parser.value <> string.join(expected_tokens, "")),
+                parser.value <> actual_token,
+                parser.pos,
+              )
+              |> Error()
+            [actual_token, ..actual_rest] ->
+              Parser(
+                actual_rest,
+                increment_parser_position(parser.pos, actual_token),
+                parser.value <> actual_token,
+              )
+              |> Ok()
+              |> do_token(expected_rest)
+          }
       }
   }
 }
@@ -388,36 +390,43 @@ fn do_many(
   callback: ParserCombinatorCallback(c, b),
   to: ParserTokenMapperCallback(a, c),
 ) -> ParserResult(a, b) {
-  use previous_parser <- result.try(prev)
-
-  case callback(previous_parser |> parser_from(initial_value)) {
-    Error(_) -> prev
-    Ok(many_parser) ->
-      do_many(
-        parser_from(many_parser, to(previous_parser.value, many_parser.value)),
-        initial_value,
-        callback,
-        to,
-      )
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(previous_parser) ->
+      case callback(previous_parser |> parser_from(initial_value)) {
+        Error(_) -> prev
+        Ok(many_parser) ->
+          do_many(
+            parser_from(
+              many_parser,
+              to(previous_parser.value, many_parser.value),
+            ),
+            initial_value,
+            callback,
+            to,
+          )
+      }
   }
 }
 
 fn do_integer(prev: ParserResult(String, a)) -> ParserResult(String, a) {
-  use parser <- result.try(prev)
-
-  case parser.tokens {
-    [] -> prev
-    [token, ..rest] ->
-      case is_digit(token) {
-        False -> prev
-        True ->
-          Parser(
-            rest,
-            increment_parser_position(parser.pos, token),
-            parser.value <> token,
-          )
-          |> Ok()
-          |> do_integer()
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [] -> prev
+        [token, ..rest] ->
+          case is_digit(token) {
+            False -> prev
+            True ->
+              Parser(
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value <> token,
+              )
+              |> Ok()
+              |> do_integer()
+          }
       }
   }
 }
@@ -426,26 +435,28 @@ fn do_float(
   prev: ParserResult(String, a),
   after_fraction: Bool,
 ) -> ParserResult(String, a) {
-  use parser <- result.try(prev)
-
-  case parser.tokens {
-    [] -> prev
-    [".", ..] if after_fraction -> prev
-    [token, ..rest] ->
-      case is_digit_or_decimal_point(token) {
-        False -> prev
-        True ->
-          Parser(
-            rest,
-            increment_parser_position(parser.pos, token),
-            parser.value <> token,
-          )
-          |> Ok()
-          |> do_float(case token {
-            "." -> True
-            _ if after_fraction -> True
-            _ -> False
-          })
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [] -> prev
+        [".", ..] if after_fraction -> prev
+        [token, ..rest] ->
+          case is_digit_or_decimal_point(token) {
+            False -> prev
+            True ->
+              Parser(
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value <> token,
+              )
+              |> Ok()
+              |> do_float(case token {
+                "." -> True
+                _ if after_fraction -> True
+                _ -> False
+              })
+          }
       }
   }
 }
@@ -455,21 +466,31 @@ fn do_until(
   until_token: String,
   expected_tokens: List(String),
 ) -> ParserResult(String, a) {
-  use parser <- result.try(prev)
-
-  case expected_tokens {
-    [] -> prev
-    [expected_token, ..] ->
-      case parser.tokens {
-        [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
-        [actual_token, ..actual_rest] if actual_token == expected_token ->
-          case
-            parser.tokens
-            |> string.join("")
-            |> string.starts_with(until_token)
-          {
-            True -> prev
-            False ->
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case expected_tokens {
+        [] -> prev
+        [expected_token, ..] ->
+          case parser.tokens {
+            [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
+            [actual_token, ..actual_rest] if actual_token == expected_token ->
+              case
+                parser.tokens
+                |> string.join("")
+                |> string.starts_with(until_token)
+              {
+                True -> prev
+                False ->
+                  Parser(
+                    actual_rest,
+                    increment_parser_position(parser.pos, actual_token),
+                    parser.value <> actual_token,
+                  )
+                  |> Ok()
+                  |> do_until(until_token, expected_tokens)
+              }
+            [actual_token, ..actual_rest] ->
               Parser(
                 actual_rest,
                 increment_parser_position(parser.pos, actual_token),
@@ -478,14 +499,6 @@ fn do_until(
               |> Ok()
               |> do_until(until_token, expected_tokens)
           }
-        [actual_token, ..actual_rest] ->
-          Parser(
-            actual_rest,
-            increment_parser_position(parser.pos, actual_token),
-            parser.value <> actual_token,
-          )
-          |> Ok()
-          |> do_until(until_token, expected_tokens)
       }
   }
 }
@@ -495,21 +508,31 @@ fn do_skip_until(
   until_token: String,
   expected_tokens: List(String),
 ) -> ParserResult(a, b) {
-  use parser <- result.try(prev)
-
-  case expected_tokens {
-    [] -> prev
-    [expected_token, ..] ->
-      case parser.tokens {
-        [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
-        [actual_token, ..actual_rest] if actual_token == expected_token ->
-          case
-            parser.tokens
-            |> string.join("")
-            |> string.starts_with(until_token)
-          {
-            True -> prev
-            False ->
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case expected_tokens {
+        [] -> prev
+        [expected_token, ..] ->
+          case parser.tokens {
+            [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
+            [actual_token, ..actual_rest] if actual_token == expected_token ->
+              case
+                parser.tokens
+                |> string.join("")
+                |> string.starts_with(until_token)
+              {
+                True -> prev
+                False ->
+                  Parser(
+                    actual_rest,
+                    increment_parser_position(parser.pos, actual_token),
+                    parser.value,
+                  )
+                  |> Ok()
+                  |> do_skip_until(until_token, expected_tokens)
+              }
+            [actual_token, ..actual_rest] ->
               Parser(
                 actual_rest,
                 increment_parser_position(parser.pos, actual_token),
@@ -518,34 +541,28 @@ fn do_skip_until(
               |> Ok()
               |> do_skip_until(until_token, expected_tokens)
           }
-        [actual_token, ..actual_rest] ->
-          Parser(
-            actual_rest,
-            increment_parser_position(parser.pos, actual_token),
-            parser.value,
-          )
-          |> Ok()
-          |> do_skip_until(until_token, expected_tokens)
       }
   }
 }
 
 fn do_whitespace(prev: ParserResult(String, a)) -> ParserResult(String, a) {
-  use parser <- result.try(prev)
-
-  case parser.tokens {
-    [] -> prev
-    [token, ..rest] ->
-      case is_whitespace(token) {
-        False -> prev
-        True ->
-          Parser(
-            rest,
-            increment_parser_position(parser.pos, token),
-            parser.value <> token,
-          )
-          |> Ok()
-          |> do_whitespace()
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [] -> prev
+        [token, ..rest] ->
+          case is_whitespace(token) {
+            False -> prev
+            True ->
+              Parser(
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value <> token,
+              )
+              |> Ok()
+              |> do_whitespace()
+          }
       }
   }
 }
@@ -574,6 +591,64 @@ fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
         float -> "-" <> string.join(float, "")
       }
     float -> float |> string.join("")
+  }
+}
+
+fn parse_string_to_integer(
+  prev: ParserResult(String, b),
+  entrypoint_parser: Parser(a),
+  to: ParserTokenMapperCallback(a, Int),
+) -> ParserResult(a, b) {
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(integer_parser) ->
+      case int.parse(integer_parser.value) {
+        Error(_) ->
+          UnexpectedToken(
+            Pattern(digit_pattern),
+            integer_parser.value,
+            integer_parser.pos,
+          )
+          |> Error()
+        Ok(integer) ->
+          Parser(
+            integer_parser.tokens,
+            integer_parser.pos,
+            to(entrypoint_parser.value, integer),
+          )
+          |> Ok()
+      }
+  }
+}
+
+fn parse_string_to_float(
+  prev: ParserResult(String, b),
+  entrypoint_parser: Parser(a),
+  to: ParserTokenMapperCallback(a, Float),
+) -> ParserResult(a, b) {
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(float_parser) ->
+      case
+        float_parser.value
+        |> add_integral_part_to_string_float_value()
+        |> float.parse()
+      {
+        Error(_) ->
+          UnexpectedToken(
+            Pattern(digit_pattern),
+            float_parser.value,
+            float_parser.pos,
+          )
+          |> Error()
+        Ok(float) ->
+          Parser(
+            float_parser.tokens,
+            float_parser.pos,
+            to(entrypoint_parser.value, float),
+          )
+          |> Ok()
+      }
   }
 }
 
