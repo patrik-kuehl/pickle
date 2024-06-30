@@ -22,7 +22,7 @@ pub fn date_tests() {
         "returns all dates that are part of the given string when all dates are valid",
         fn() {
           pickle.parse(
-            "2020-08-15T20:30:00Z\n2022-09-01T12:00:00Z\n2024-12-10T09:15:00\n",
+            "2020-08-15T20:30:00Z\n2022-09-01T12:00:00Z\n2024-12-10T09:15:00",
             [],
             parse_dates,
           )
@@ -49,32 +49,32 @@ pub fn date_tests() {
         ))
       }),
       it("returns an error when the year is invalid", fn() {
-        pickle.parse("500-08-15T20:30:00Z\n", create_blank_date(), parse_date)
+        pickle.parse("500-08-15T20:30:00Z", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidYear, ParserPosition(0, 3)))
       }),
       it("returns an error when the month is invalid", fn() {
-        pickle.parse("2015-40-01T20:30:00\n", create_blank_date(), parse_date)
+        pickle.parse("2015-40-01T20:30:00", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidMonth, ParserPosition(0, 7)))
       }),
       it("returns an error when the day is invalid", fn() {
-        pickle.parse("2010-10-35T20:30:00\n", create_blank_date(), parse_date)
+        pickle.parse("2010-10-35T20:30:00", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidDay, ParserPosition(0, 10)))
       }),
       it("returns an error when the hour is invalid", fn() {
-        pickle.parse("2010-10-20T25:30:00\n", create_blank_date(), parse_date)
+        pickle.parse("2010-10-20T25:30:00", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidHour, ParserPosition(0, 13)))
       }),
       it("returns an error when the minute is invalid", fn() {
-        pickle.parse("2010-10-20T22:72:00\n", create_blank_date(), parse_date)
+        pickle.parse("2010-10-20T22:72:00", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidMinute, ParserPosition(0, 16)))
       }),
       it("returns an error when the second is invalid", fn() {
-        pickle.parse("2010-10-20T22:30:62\n", create_blank_date(), parse_date)
+        pickle.parse("2010-10-20T22:30:62", create_blank_date(), parse_date)
         |> expect.to_be_error()
         |> expect.to_equal(GuardError(InvalidSecond, ParserPosition(0, 19)))
       }),
@@ -164,7 +164,7 @@ fn parse_date_second(prev: DateParserResult) -> DateParserResult {
   |> pickle.integer(fn(date, second) { Date(..date, second: second) })
   |> pickle.guard(has_valid_second, InvalidSecond)
   |> pickle.optional(pickle.token(_, "Z", pickle.ignore_token))
-  |> pickle.token("\n", pickle.ignore_token)
+  |> pickle.one_of([pickle.token(_, "\n", pickle.ignore_token), pickle.eof(_)])
 }
 
 fn has_valid_year(date: Date) -> Bool {
