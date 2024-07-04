@@ -23,4 +23,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/many` to parse tokens zero to `n` times until the given parser fails.
 -   Added `pickle/optional` to ignore and backtrack the parser in case the given parser fails.
 -   Added `pickle/token` to parse a specific token.
+-   Added `pickle/then` to chain parsers.
 -   Added `pickle/parse` to parse a set of tokens via a given parser.
