@@ -7,7 +7,7 @@ pub type ParserPosition {
   ParserPosition(row: Int, col: Int)
 }
 
-pub type Parser(a) {
+pub opaque type Parser(a) {
   Parser(tokens: List(String), pos: ParserPosition, value: a)
 }
 
@@ -27,21 +27,6 @@ pub type ParserFailure(a) {
   GuardError(error: a, pos: ParserPosition)
 }
 
-pub type ParserResult(a, b) =
-  Result(Parser(a), ParserFailure(b))
-
-pub type ParserPredicateCallback(a) =
-  fn(a) -> Bool
-
-pub type ParserValueMapperCallback(a, b) =
-  fn(a) -> b
-
-pub type ParserTokenMapperCallback(a, b) =
-  fn(a, b) -> a
-
-pub type ParserCombinatorCallback(a, b) =
-  fn(ParserResult(a, b)) -> ParserResult(a, b)
-
 pub fn ignore_token(value: a, _: String) -> a {
   value
 }
@@ -57,295 +42,285 @@ pub fn ignore_float(value: a, _: Float) -> a {
 pub fn parse(
   input: String,
   initial_value: a,
-  callback: ParserCombinatorCallback(a, b),
-) -> Result(a, ParserFailure(b)) {
+  combinator: fn(Parser(a)) -> Result(Parser(b), ParserFailure(c)),
+) -> Result(b, ParserFailure(c)) {
   case
-    Parser(string.split(input, ""), ParserPosition(0, 0), initial_value)
-    |> Ok()
-    |> callback()
+    Parser(string.to_graphemes(input), ParserPosition(0, 0), initial_value)
+    |> combinator()
   {
     Error(failure) -> Error(failure)
     Ok(parser) -> Ok(parser.value)
   }
 }
 
+pub fn then(
+  prev: fn(Parser(a)) -> Result(Parser(b), ParserFailure(c)),
+  then: fn(Parser(b)) -> Result(Parser(d), ParserFailure(c)),
+) -> fn(Parser(a)) -> Result(Parser(d), ParserFailure(c)) {
+  fn(parser) {
+    case prev(parser) {
+      Error(failure) -> Error(failure)
+      Ok(next_parser) -> then(next_parser)
+    }
+  }
+}
+
 pub fn guard(
-  prev: ParserResult(a, b),
-  predicate: ParserPredicateCallback(a),
+  predicate: fn(a) -> Bool,
   error: b,
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case predicate(parser.value) {
-        False -> GuardError(error, parser.pos) |> Error()
-        True -> prev
-      }
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(_, pos, value) = parser
+
+    case predicate(value) {
+      False -> GuardError(error, pos) |> Error()
+      True -> Ok(parser)
+    }
   }
 }
 
 pub fn map(
-  prev: ParserResult(a, b),
-  to: ParserValueMapperCallback(a, c),
-) -> ParserResult(c, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) -> parser_from(parser, to(parser.value))
+  mapper: fn(a) -> b,
+) -> fn(Parser(a)) -> Result(Parser(b), ParserFailure(c)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    Parser(tokens, pos, mapper(value)) |> Ok()
   }
 }
 
 pub fn token(
-  prev: ParserResult(a, b),
   token: String,
-  to: ParserTokenMapperCallback(a, String),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case
-        parser_from(previous_parser, "")
-        |> do_token(string.split(token, ""))
-      {
-        Error(failure) -> Error(failure)
-        Ok(token_parser) ->
-          parser_from(
-            token_parser,
-            to(previous_parser.value, token_parser.value),
-          )
-      }
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case
+      Parser(tokens, pos, "")
+      |> Ok()
+      |> do_token(string.to_graphemes(token))
+    {
+      Error(failure) -> Error(failure)
+      Ok(token_parser) ->
+        Parser(
+          token_parser.tokens,
+          token_parser.pos,
+          mapper(value, token_parser.value),
+        )
+        |> Ok()
+    }
   }
 }
 
 pub fn optional(
-  prev: ParserResult(a, b),
-  callback: ParserCombinatorCallback(a, b),
-) -> ParserResult(a, b) {
-  case callback(prev) {
-    Error(_) -> prev
-    result -> result
+  combinator: fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)),
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    case combinator(parser) {
+      Error(_) -> Ok(parser)
+      result -> result
+    }
   }
 }
 
 pub fn many(
-  prev: ParserResult(a, b),
-  initial_value: c,
-  callback: ParserCombinatorCallback(c, b),
-  to: ParserTokenMapperCallback(a, c),
-) -> ParserResult(a, b) {
-  do_many(prev, initial_value, callback, to)
+  initial_value: a,
+  combinator: fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)),
+  acc: fn(c, a) -> c,
+) -> fn(Parser(c)) -> Result(Parser(c), ParserFailure(b)) {
+  fn(parser) {
+    parser
+    |> Ok()
+    |> do_many(initial_value, combinator, acc)
+  }
 }
 
 pub fn integer(
-  prev: ParserResult(a, b),
-  to: ParserTokenMapperCallback(a, Int),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case previous_parser.tokens {
-        [token, ..rest]
-          if token == "0"
-          || token == "1"
-          || token == "2"
-          || token == "3"
-          || token == "4"
-          || token == "5"
-          || token == "6"
-          || token == "7"
-          || token == "8"
-          || token == "9"
-        ->
-          Parser(
-            rest,
-            increment_parser_position(previous_parser.pos, token),
-            token,
-          )
-          |> Ok()
-          |> do_integer()
-          |> parse_string_to_integer(previous_parser, to)
-        [token, ..rest] if token == "+" || token == "-" ->
-          case rest {
-            [] ->
-              UnexpectedEof(
-                Pattern(digit_pattern),
-                increment_parser_position(previous_parser.pos, token),
-              )
-              |> Error()
-            tokens ->
-              Parser(
-                tokens,
-                increment_parser_position(previous_parser.pos, token),
-                token,
-              )
-              |> Ok()
-              |> do_integer()
-              |> parse_string_to_integer(previous_parser, to)
-          }
-        [token, ..] ->
-          UnexpectedToken(Pattern(digit_pattern), token, previous_parser.pos)
-          |> Error()
-        [] ->
-          UnexpectedEof(Pattern(digit_pattern), previous_parser.pos)
-          |> Error()
-      }
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    case tokens {
+      [token, ..rest]
+        if token == "0"
+        || token == "1"
+        || token == "2"
+        || token == "3"
+        || token == "4"
+        || token == "5"
+        || token == "6"
+        || token == "7"
+        || token == "8"
+        || token == "9"
+      ->
+        Parser(rest, increment_parser_position(pos, token), token)
+        |> Ok()
+        |> do_integer()
+        |> parse_string_as_integer(parser, mapper)
+      [token, ..rest] if token == "+" || token == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(
+              Pattern(digit_pattern),
+              increment_parser_position(pos, token),
+            )
+            |> Error()
+          tokens ->
+            Parser(tokens, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> do_integer()
+            |> parse_string_as_integer(parser, mapper)
+        }
+      [token, ..] ->
+        UnexpectedToken(Pattern(digit_pattern), token, pos)
+        |> Error()
+      [] ->
+        UnexpectedEof(Pattern(digit_pattern), pos)
+        |> Error()
+    }
   }
 }
 
 pub fn float(
-  prev: ParserResult(a, b),
-  to: ParserTokenMapperCallback(a, Float),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case previous_parser.tokens {
-        [token, ..rest]
-          if token == "0"
-          || token == "1"
-          || token == "2"
-          || token == "3"
-          || token == "4"
-          || token == "5"
-          || token == "6"
-          || token == "7"
-          || token == "8"
-          || token == "9"
-          || token == "."
-        ->
-          Parser(
-            rest,
-            increment_parser_position(previous_parser.pos, token),
-            token,
-          )
-          |> Ok()
-          |> do_float(False)
-          |> parse_string_to_float(previous_parser, to)
-        [token, ..rest] if token == "+" || token == "-" ->
-          case rest {
-            [] ->
-              UnexpectedEof(
-                Pattern(digit_or_decimal_point_pattern),
-                increment_parser_position(previous_parser.pos, token),
-              )
-              |> Error()
-            tokens ->
-              Parser(
-                tokens,
-                increment_parser_position(previous_parser.pos, token),
-                token,
-              )
-              |> Ok()
-              |> do_float(False)
-              |> parse_string_to_float(previous_parser, to)
-          }
-        [token, ..] ->
-          UnexpectedToken(
-            Pattern(digit_or_decimal_point_pattern),
-            token,
-            previous_parser.pos,
-          )
-          |> Error()
-        [] ->
-          UnexpectedEof(
-            Pattern(digit_or_decimal_point_pattern),
-            previous_parser.pos,
-          )
-          |> Error()
-      }
+  mapper: fn(a, Float) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    case tokens {
+      [token, ..rest]
+        if token == "0"
+        || token == "1"
+        || token == "2"
+        || token == "3"
+        || token == "4"
+        || token == "5"
+        || token == "6"
+        || token == "7"
+        || token == "8"
+        || token == "9"
+        || token == "."
+      ->
+        Parser(rest, increment_parser_position(pos, token), token)
+        |> Ok()
+        |> do_float(False)
+        |> parse_string_as_float(parser, mapper)
+      [token, ..rest] if token == "+" || token == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(
+              Pattern(digit_or_decimal_point_pattern),
+              increment_parser_position(pos, token),
+            )
+            |> Error()
+          tokens ->
+            Parser(tokens, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> do_float(False)
+            |> parse_string_as_float(parser, mapper)
+        }
+      [token, ..] ->
+        UnexpectedToken(Pattern(digit_or_decimal_point_pattern), token, pos)
+        |> Error()
+      [] ->
+        UnexpectedEof(Pattern(digit_or_decimal_point_pattern), pos)
+        |> Error()
+    }
   }
 }
 
 pub fn until(
-  prev: ParserResult(a, b),
   token: String,
-  to: ParserTokenMapperCallback(a, String),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case
-        parser_from(previous_parser, "")
-        |> do_until(token, string.split(token, ""))
-      {
-        Error(failure) -> Error(failure)
-        Ok(until_parser) ->
-          parser_from(
-            until_parser,
-            to(previous_parser.value, until_parser.value),
-          )
-      }
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case
+      Parser(tokens, pos, "")
+      |> Ok()
+      |> do_until(token, string.to_graphemes(token))
+    {
+      Error(failure) -> Error(failure)
+      Ok(until_parser) ->
+        Parser(
+          until_parser.tokens,
+          until_parser.pos,
+          mapper(value, until_parser.value),
+        )
+        |> Ok()
+    }
   }
 }
 
-pub fn skip_until(prev: ParserResult(a, b), token: String) -> ParserResult(a, b) {
-  do_skip_until(prev, token, token |> string.split(""))
+pub fn skip_until(
+  token: String,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    parser |> Ok() |> do_skip_until(token, string.to_graphemes(token))
+  }
 }
 
 pub fn whitespace(
-  prev: ParserResult(a, b),
-  to: ParserTokenMapperCallback(a, String),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case parser_from(previous_parser, "") |> do_whitespace() {
-        Error(failure) -> Error(failure)
-        Ok(whitespace_parser) ->
-          parser_from(
-            whitespace_parser,
-            to(previous_parser.value, whitespace_parser.value),
-          )
-      }
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case Parser(tokens, pos, "") |> Ok() |> do_whitespace() {
+      Error(failure) -> Error(failure)
+      Ok(whitespace_parser) ->
+        Parser(
+          whitespace_parser.tokens,
+          whitespace_parser.pos,
+          mapper(value, whitespace_parser.value),
+        )
+        |> Ok()
+    }
   }
 }
 
-pub fn skip_whitespace(prev: ParserResult(a, b)) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case parser.tokens {
-        [] -> prev
-        [token, ..rest] ->
-          case is_whitespace(token) {
-            False -> prev
-            True ->
-              Parser(
-                rest,
-                increment_parser_position(parser.pos, token),
-                parser.value,
-              )
-              |> Ok()
-              |> skip_whitespace()
-          }
-      }
+pub fn skip_whitespace() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case tokens {
+      [] -> Ok(parser)
+      [token, ..rest] ->
+        case is_whitespace(token) {
+          False -> Ok(parser)
+          True ->
+            Parser(rest, increment_parser_position(pos, token), value)
+            |> skip_whitespace()
+        }
+    }
   }
 }
 
 pub fn one_of(
-  prev: ParserResult(a, b),
-  callbacks: List(ParserCombinatorCallback(a, b)),
-) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) -> do_one_of(prev, parser, callbacks)
+  combinators: List(fn(Parser(a)) -> Result(Parser(a), ParserFailure(b))),
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) { parser |> Ok() |> do_one_of(parser, combinators) }
+}
+
+pub fn return(value: a) -> fn(Parser(b)) -> Result(Parser(a), ParserFailure(c)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    Parser(tokens, pos, value) |> Ok()
   }
 }
 
-pub fn return(prev: ParserResult(a, b), value: c) -> ParserResult(c, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) -> parser_from(parser, value)
-  }
-}
+pub fn eof() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
 
-pub fn eof(prev: ParserResult(a, b)) -> ParserResult(a, b) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case parser.tokens {
-        [token, ..] -> UnexpectedToken(Eof, token, parser.pos) |> Error()
-        [] -> prev
-      }
+    case tokens {
+      [token, ..] -> UnexpectedToken(Eof, token, pos) |> Error()
+      [] -> Ok(parser)
+    }
   }
 }
 
@@ -355,14 +330,10 @@ const digit_or_decimal_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
 
-fn parser_from(prev: Parser(a), initial_value: b) -> ParserResult(b, c) {
-  Parser(prev.tokens, prev.pos, initial_value) |> Ok()
-}
-
 fn do_token(
-  prev: ParserResult(String, a),
+  prev: Result(Parser(String), ParserFailure(a)),
   expected_tokens: List(String),
-) -> ParserResult(String, a) {
+) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -397,31 +368,31 @@ fn do_token(
 }
 
 fn do_many(
-  prev: ParserResult(a, b),
+  prev: Result(Parser(a), ParserFailure(b)),
   initial_value: c,
-  callback: ParserCombinatorCallback(c, b),
-  to: ParserTokenMapperCallback(a, c),
-) -> ParserResult(a, b) {
+  combinator: fn(Parser(c)) -> Result(Parser(c), ParserFailure(b)),
+  acc: fn(a, c) -> a,
+) -> Result(Parser(a), ParserFailure(b)) {
   case prev {
     Error(failure) -> Error(failure)
-    Ok(previous_parser) ->
-      case parser_from(previous_parser, initial_value) |> callback() {
+    Ok(parser) ->
+      case Parser(parser.tokens, parser.pos, initial_value) |> combinator() {
         Error(_) -> prev
         Ok(many_parser) ->
-          do_many(
-            parser_from(
-              many_parser,
-              to(previous_parser.value, many_parser.value),
-            ),
-            initial_value,
-            callback,
-            to,
+          Parser(
+            many_parser.tokens,
+            many_parser.pos,
+            acc(parser.value, many_parser.value),
           )
+          |> Ok()
+          |> do_many(initial_value, combinator, acc)
       }
   }
 }
 
-fn do_integer(prev: ParserResult(String, a)) -> ParserResult(String, a) {
+fn do_integer(
+  prev: Result(Parser(String), ParserFailure(a)),
+) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -444,9 +415,9 @@ fn do_integer(prev: ParserResult(String, a)) -> ParserResult(String, a) {
 }
 
 fn do_float(
-  prev: ParserResult(String, a),
+  prev: Result(Parser(String), ParserFailure(a)),
   after_fraction: Bool,
-) -> ParserResult(String, a) {
+) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -474,10 +445,10 @@ fn do_float(
 }
 
 fn do_until(
-  prev: ParserResult(String, a),
+  prev: Result(Parser(String), ParserFailure(a)),
   until_token: String,
   expected_tokens: List(String),
-) -> ParserResult(String, a) {
+) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -516,10 +487,10 @@ fn do_until(
 }
 
 fn do_skip_until(
-  prev: ParserResult(a, b),
+  prev: Result(Parser(a), ParserFailure(b)),
   until_token: String,
   expected_tokens: List(String),
-) -> ParserResult(a, b) {
+) -> Result(Parser(a), ParserFailure(b)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -557,7 +528,9 @@ fn do_skip_until(
   }
 }
 
-fn do_whitespace(prev: ParserResult(String, a)) -> ParserResult(String, a) {
+fn do_whitespace(
+  prev: Result(Parser(String), ParserFailure(a)),
+) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
@@ -580,14 +553,14 @@ fn do_whitespace(prev: ParserResult(String, a)) -> ParserResult(String, a) {
 }
 
 fn do_one_of(
-  prev: ParserResult(a, b),
+  prev: Result(Parser(a), ParserFailure(b)),
   entrypoint_parser: Parser(a),
-  callbacks: List(ParserCombinatorCallback(a, b)),
-) -> ParserResult(a, b) {
-  case callbacks {
+  combinators: List(fn(Parser(a)) -> Result(Parser(a), ParserFailure(b))),
+) -> Result(Parser(a), ParserFailure(b)) {
+  case combinators {
     [] -> prev
-    [parser, ..rest] ->
-      case entrypoint_parser |> Ok() |> parser() {
+    [combinator, ..rest] ->
+      case entrypoint_parser |> combinator() {
         Ok(parser) -> Ok(parser)
         result -> do_one_of(result, entrypoint_parser, rest)
       }
@@ -606,11 +579,11 @@ fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
   }
 }
 
-fn parse_string_to_integer(
-  prev: ParserResult(String, b),
-  entrypoint_parser: Parser(a),
-  to: ParserTokenMapperCallback(a, Int),
-) -> ParserResult(a, b) {
+fn parse_string_as_integer(
+  prev: Result(Parser(String), ParserFailure(a)),
+  entrypoint_parser: Parser(b),
+  mapper: fn(b, Int) -> b,
+) -> Result(Parser(b), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(integer_parser) ->
@@ -623,16 +596,21 @@ fn parse_string_to_integer(
           )
           |> Error()
         Ok(integer) ->
-          parser_from(integer_parser, to(entrypoint_parser.value, integer))
+          Parser(
+            integer_parser.tokens,
+            integer_parser.pos,
+            mapper(entrypoint_parser.value, integer),
+          )
+          |> Ok()
       }
   }
 }
 
-fn parse_string_to_float(
-  prev: ParserResult(String, b),
-  entrypoint_parser: Parser(a),
-  to: ParserTokenMapperCallback(a, Float),
-) -> ParserResult(a, b) {
+fn parse_string_as_float(
+  prev: Result(Parser(String), ParserFailure(a)),
+  entrypoint_parser: Parser(b),
+  mapper: fn(b, Float) -> b,
+) -> Result(Parser(b), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(float_parser) ->
@@ -649,7 +627,12 @@ fn parse_string_to_float(
           )
           |> Error()
         Ok(float) ->
-          parser_from(float_parser, to(entrypoint_parser.value, float))
+          Parser(
+            float_parser.tokens,
+            float_parser.pos,
+            mapper(entrypoint_parser.value, float),
+          )
+          |> Ok()
       }
   }
 }
