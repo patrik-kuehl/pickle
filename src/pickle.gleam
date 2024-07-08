@@ -25,6 +25,7 @@ pub type ParserFailure(a) {
   )
   UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
   GuardError(error: a, pos: ParserPosition)
+  OneOfError(failures: List(ParserFailure(a)))
 }
 
 pub fn ignore_string(value: a, _: String) -> a {
@@ -302,7 +303,7 @@ pub fn skip_whitespace() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b))
 pub fn one_of(
   combinators: List(fn(Parser(a)) -> Result(Parser(a), ParserFailure(b))),
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) { parser |> Ok() |> do_one_of(parser, combinators) }
+  fn(parser) { parser |> Ok() |> do_one_of(parser, combinators, []) }
 }
 
 pub fn return(value: a) -> fn(Parser(b)) -> Result(Parser(a), ParserFailure(c)) {
@@ -556,13 +557,20 @@ fn do_one_of(
   prev: Result(Parser(a), ParserFailure(b)),
   entrypoint_parser: Parser(a),
   combinators: List(fn(Parser(a)) -> Result(Parser(a), ParserFailure(b))),
+  failures: List(ParserFailure(b)),
 ) -> Result(Parser(a), ParserFailure(b)) {
   case combinators {
-    [] -> prev
+    [] ->
+      case failures {
+        [] -> prev
+        _ -> OneOfError(failures) |> Error()
+      }
     [combinator, ..rest] ->
       case entrypoint_parser |> combinator() {
         Ok(parser) -> Ok(parser)
-        result -> do_one_of(result, entrypoint_parser, rest)
+        Error(failure) ->
+          Error(failure)
+          |> do_one_of(entrypoint_parser, rest, [failure, ..failures])
       }
   }
 }

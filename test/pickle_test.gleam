@@ -2,7 +2,7 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import pickle.{
-  Eof, GuardError, Literal, ParserPosition, Pattern, UnexpectedEof,
+  Eof, GuardError, Literal, OneOfError, ParserPosition, Pattern, UnexpectedEof,
   UnexpectedToken,
 }
 
@@ -369,7 +369,12 @@ pub fn one_of_test() {
   ])
   |> pickle.parse("ade", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abd"), "ad", ParserPosition(0, 1)))
+  |> should.equal(
+    OneOfError([
+      UnexpectedToken(Literal("abd"), "ad", ParserPosition(0, 1)),
+      UnexpectedToken(Literal("abc"), "ad", ParserPosition(0, 1)),
+    ]),
+  )
 
   pickle.string("123", fn(value, string) { value <> string })
   |> pickle.then(
