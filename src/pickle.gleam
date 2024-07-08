@@ -27,7 +27,7 @@ pub type ParserFailure(a) {
   GuardError(error: a, pos: ParserPosition)
 }
 
-pub fn ignore_token(value: a, _: String) -> a {
+pub fn ignore_string(value: a, _: String) -> a {
   value
 }
 
@@ -89,8 +89,8 @@ pub fn map(
   }
 }
 
-pub fn token(
-  token: String,
+pub fn string(
+  expected: String,
   mapper: fn(a, String) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
@@ -99,7 +99,7 @@ pub fn token(
     case
       Parser(tokens, pos, "")
       |> Ok()
-      |> do_token(string.to_graphemes(token))
+      |> do_string(string.to_graphemes(expected))
     {
       Error(failure) -> Error(failure)
       Ok(token_parser) ->
@@ -232,7 +232,7 @@ pub fn float(
 }
 
 pub fn until(
-  token: String,
+  terminator: String,
   mapper: fn(a, String) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
@@ -241,7 +241,7 @@ pub fn until(
     case
       Parser(tokens, pos, "")
       |> Ok()
-      |> do_until(token, string.to_graphemes(token))
+      |> do_until(terminator, string.to_graphemes(terminator))
     {
       Error(failure) -> Error(failure)
       Ok(until_parser) ->
@@ -256,10 +256,10 @@ pub fn until(
 }
 
 pub fn skip_until(
-  token: String,
+  terminator: String,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
-    parser |> Ok() |> do_skip_until(token, string.to_graphemes(token))
+    parser |> Ok() |> do_skip_until(terminator, string.to_graphemes(terminator))
   }
 }
 
@@ -330,7 +330,7 @@ const digit_or_decimal_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
 
-fn do_token(
+fn do_string(
   prev: Result(Parser(String), ParserFailure(a)),
   expected_tokens: List(String),
 ) -> Result(Parser(String), ParserFailure(a)) {
@@ -361,7 +361,7 @@ fn do_token(
                 parser.value <> actual_token,
               )
               |> Ok()
-              |> do_token(expected_rest)
+              |> do_string(expected_rest)
           }
       }
   }
@@ -446,7 +446,7 @@ fn do_float(
 
 fn do_until(
   prev: Result(Parser(String), ParserFailure(a)),
-  until_token: String,
+  terminator: String,
   expected_tokens: List(String),
 ) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
@@ -456,12 +456,12 @@ fn do_until(
         [] -> prev
         [expected_token, ..] ->
           case parser.tokens {
-            [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
+            [] -> UnexpectedEof(Literal(terminator), parser.pos) |> Error()
             [actual_token, ..actual_rest] if actual_token == expected_token ->
               case
                 parser.tokens
                 |> string.join("")
-                |> string.starts_with(until_token)
+                |> string.starts_with(terminator)
               {
                 True -> prev
                 False ->
@@ -471,7 +471,7 @@ fn do_until(
                     parser.value <> actual_token,
                   )
                   |> Ok()
-                  |> do_until(until_token, expected_tokens)
+                  |> do_until(terminator, expected_tokens)
               }
             [actual_token, ..actual_rest] ->
               Parser(
@@ -480,7 +480,7 @@ fn do_until(
                 parser.value <> actual_token,
               )
               |> Ok()
-              |> do_until(until_token, expected_tokens)
+              |> do_until(terminator, expected_tokens)
           }
       }
   }
@@ -488,7 +488,7 @@ fn do_until(
 
 fn do_skip_until(
   prev: Result(Parser(a), ParserFailure(b)),
-  until_token: String,
+  terminator: String,
   expected_tokens: List(String),
 ) -> Result(Parser(a), ParserFailure(b)) {
   case prev {
@@ -498,12 +498,12 @@ fn do_skip_until(
         [] -> prev
         [expected_token, ..] ->
           case parser.tokens {
-            [] -> UnexpectedEof(Literal(until_token), parser.pos) |> Error()
+            [] -> UnexpectedEof(Literal(terminator), parser.pos) |> Error()
             [actual_token, ..actual_rest] if actual_token == expected_token ->
               case
                 parser.tokens
                 |> string.join("")
-                |> string.starts_with(until_token)
+                |> string.starts_with(terminator)
               {
                 True -> prev
                 False ->
@@ -513,7 +513,7 @@ fn do_skip_until(
                     parser.value,
                   )
                   |> Ok()
-                  |> do_skip_until(until_token, expected_tokens)
+                  |> do_skip_until(terminator, expected_tokens)
               }
             [actual_token, ..actual_rest] ->
               Parser(
@@ -522,7 +522,7 @@ fn do_skip_until(
                 parser.value,
               )
               |> Ok()
-              |> do_skip_until(until_token, expected_tokens)
+              |> do_skip_until(terminator, expected_tokens)
           }
       }
   }
