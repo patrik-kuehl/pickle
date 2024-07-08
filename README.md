@@ -7,8 +7,43 @@
 
 A parser combinator library for Gleam that supports all targets.
 
-Pickle's API does heavily rely on pipelines, thus you can create powerful parsers by simply chaining multiple parsers
-together.
+Pickle's API does heavily rely on pipelines, thus you can create powerful parsers by chaining multiple parsers together
+with the pipe operator. This is a stark contrast to other parser combinator libraries for Gleam, which are often built
+around the use expression.
+
+Pickle enables scannerless recursive descent parsing, but this applies to almost every other parser combinator library.
+
+## Demo 🥒
+
+```gleam
+import gleam/io
+import gleam/string
+import pickle.{type Parser, ParserFailure}
+
+type Point {
+  Point(x: Int, y: Int)
+}
+
+fn blank_point() -> Point {
+  Point(0, 0)
+}
+
+fn point_parser() -> fn(Parser(Point)) ->
+  Result(Parser(Point), ParserFailure(String)) {
+  pickle.string("(", pickle.ignore_string)
+  |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
+  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
+  |> pickle.then(pickle.string(")", pickle.ignore_string))
+}
+
+pub fn main() {
+  let assert Ok(point) =
+    pickle.parse("(100,-25)", blank_point(), point_parser())
+
+  string.inspect(point) |> io.print() // prints "Point(100, -25)"
+}
+```
 
 ## Changelog 🥒
 
