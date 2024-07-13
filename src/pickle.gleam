@@ -17,6 +17,7 @@ pub type ExpectedToken {
   Integer
   BinaryDigit
   DecimalDigit
+  HexadecimalDigit
   DecimalDigitOrPoint
   String(String)
 }
@@ -140,6 +141,7 @@ pub fn binary_integer(
     let Parser(tokens, pos, _) = parser
 
     case tokens {
+      [] -> UnexpectedEof(BinaryDigit, pos) |> Error()
       ["0", "b", ..rest] | ["0", "B", ..rest] ->
         case rest {
           [] ->
@@ -190,13 +192,15 @@ pub fn binary_integer(
                 |> parse_string_as_integer(parser, 2, mapper)
             }
         }
-      [token, ..rest] if token == "0" || token == "1" ->
-        Parser(rest, increment_parser_position(pos, token), token)
-        |> Ok()
-        |> do_integer(is_binary_digit)
-        |> parse_string_as_integer(parser, 2, mapper)
-      [token, ..] -> UnexpectedToken(BinaryDigit, token, pos) |> Error()
-      [] -> UnexpectedEof(BinaryDigit, pos) |> Error()
+      [token, ..rest] ->
+        case is_binary_digit(token) {
+          False -> UnexpectedToken(BinaryDigit, token, pos) |> Error()
+          True ->
+            Parser(rest, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> do_integer(is_binary_digit)
+            |> parse_string_as_integer(parser, 2, mapper)
+        }
     }
   }
 }
@@ -247,6 +251,83 @@ pub fn decimal_integer(
   }
 }
 
+pub fn hexadecimal_integer(
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    case tokens {
+      [] -> UnexpectedEof(HexadecimalDigit, pos) |> Error()
+      ["0", "x", ..rest] | ["0", "X", ..rest] ->
+        case rest {
+          [] ->
+            UnexpectedEof(
+              HexadecimalDigit,
+              increment_parser_position(pos, "0x"),
+            )
+            |> Error()
+          [token, ..rest] ->
+            case is_hexadecimal_digit(token) {
+              False ->
+                UnexpectedToken(
+                  HexadecimalDigit,
+                  token,
+                  increment_parser_position(pos, "0x"),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, "0x" <> token),
+                  token,
+                )
+                |> Ok()
+                |> do_integer(is_hexadecimal_digit)
+                |> parse_string_as_integer(parser, 16, mapper)
+            }
+        }
+      [sign, ..rest] if sign == "+" || sign == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(
+              HexadecimalDigit,
+              increment_parser_position(pos, sign),
+            )
+            |> Error()
+          [token, ..rest] ->
+            case is_hexadecimal_digit(token) {
+              False ->
+                UnexpectedToken(
+                  HexadecimalDigit,
+                  token,
+                  increment_parser_position(pos, sign),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, sign <> token),
+                  sign <> token,
+                )
+                |> Ok()
+                |> do_integer(is_hexadecimal_digit)
+                |> parse_string_as_integer(parser, 16, mapper)
+            }
+        }
+      [token, ..rest] ->
+        case is_hexadecimal_digit(token) {
+          False -> UnexpectedToken(HexadecimalDigit, token, pos) |> Error()
+          True ->
+            Parser(rest, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> do_integer(is_hexadecimal_digit)
+            |> parse_string_as_integer(parser, 16, mapper)
+        }
+    }
+  }
+}
+
 pub fn integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
@@ -255,7 +336,14 @@ pub fn integer(
 
     case tokens {
       ["0", "b", ..] | ["0", "B", ..] -> parser |> binary_integer(mapper)
-      _ -> parser |> one_of([decimal_integer(mapper), binary_integer(mapper)])
+      ["0", "x", ..] | ["0", "X", ..] -> parser |> hexadecimal_integer(mapper)
+      _ ->
+        parser
+        |> one_of([
+          decimal_integer(mapper),
+          binary_integer(mapper),
+          hexadecimal_integer(mapper),
+        ])
     }
   }
 }
@@ -389,6 +477,8 @@ pub fn eof() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
 const binary_digit_pattern = "^[01]$"
 
 const decimal_digit_pattern = "^[0-9]$"
+
+const hexadecimal_digit_pattern = "^[0-9a-fA-F]$"
 
 const decimal_digit_or_point_pattern = "^[0-9.]$"
 
@@ -698,6 +788,10 @@ fn is_binary_digit(token: String) -> Bool {
 
 fn is_decimal_digit(token: String) -> Bool {
   matches_pattern(token, decimal_digit_pattern)
+}
+
+fn is_hexadecimal_digit(token: String) -> Bool {
+  matches_pattern(token, hexadecimal_digit_pattern)
 }
 
 fn is_decimal_digit_or_point(token: String) -> Bool {
