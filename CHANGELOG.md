@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/whitespace` to parse zero to `n` whitespace tokens.
 -   Added `pickle/float` to parse tokens as a float.
 -   Added `pickle/integer` to parse tokens as an integer.
+-   Added `pickle/hexadecimal_integer` to parse tokens as a hexadecimal integer.
 -   Added `pickle/decimal_integer` to parse tokens as a decimal integer.
 -   Added `pickle/binary_integer` to parse tokens as a binary integer.
 -   Added `pickle/skip_until` to skip zero to `n` tokens until reaching a specific terminator.
