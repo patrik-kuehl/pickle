@@ -26,18 +26,18 @@ import pickle.{type Parser, type ParserFailure}
 
 fn point_parser() -> fn(Parser(Point)) ->
   Result(Parser(Point), ParserFailure(Nil)) {
-  pickle.string("(", pickle.ignore_string)
+  pickle.string("(", pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
-  |> pickle.then(pickle.string(")", pickle.ignore_string))
+  |> pickle.then(pickle.string(")", pickle.drop))
 }
 ```
 
 This is how parsers in Pickle look like, no matter how complex they are.
 
 We start with `pickle/string` to parse a specific string, in this case the opening bracket. Since we don't need it
-eventually, we drop it via `pickle/ignore_string`, which is a mapper provided by Pickle to drop the parsed value.
+eventually, we drop it via `pickle/drop`, which is a mapper provided by Pickle to drop the parsed value.
 
 We then (no pun intended) use `pickle/then` to combine two parsers. You'll be using this a lot when using Pickle and for
 brevity reasons, `pickle/then` won't be mentioned anymore from this point on.
@@ -45,6 +45,11 @@ brevity reasons, `pickle/then` won't be mentioned anymore from this point on.
 The prior parser is combined with `pickle/integer` to parse an integer, our `x` value, which we use to create a new
 point with our acquired `x` value. `pickle/integer` parses the given tokens as long as they can be represented as an
 integer, so it doesn't expect an integer of a specific length.
+
+Pickle supports different numeric formats (binary, decimal, hexadecimal and octal) for integers. `pickle/integer`
+supports all mentioned numeric formats. If you need or want to parse an integer of a specific numeric format, you can
+take a look at Pickle's module documentation. In this guide we'll only be using decimal integers, but feel free to play
+around.
 
 We then continue our adventure with `pickle/string` to parse and drop the comma.
 
@@ -62,9 +67,13 @@ import pickle.{type Parser, type ParserFailure}
 
 /// ...
 
+fn new_point() -> Point {
+  Point(0, 0)
+}
+
 pub fn main() {
   let assert Ok(point) =
-    pickle.parse("(20,10)", Point(0, 0), point_parser())
+    pickle.parse("(20,10)", new_point(), point_parser())
 
   string.inspect(point) |> io.print() // prints "Point(20, 10)"
 }
@@ -90,11 +99,11 @@ fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
 ) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(Nil)) {
-  pickle.string(opening_bracket, pickle.ignore_string)
+  pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
-  |> pickle.then(pickle.string(closing_bracket, pickle.ignore_string))
+  |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
 fn point_parser() -> fn(Parser(Point)) ->
@@ -116,10 +125,10 @@ import pickle.{type Parser, type ParserFailure}
 
 pub fn main() {
   let assert Ok(first_point) =
-    pickle.parse("(20,-5)", Point(0, 0), point_parser())
+    pickle.parse("(20,-5)", new_point(), point_parser())
 
   let assert Ok(second_point) =
-    pickle.parse("[10,325]", Point(0, 0), point_parser())
+    pickle.parse("[10,325]", new_point(), point_parser())
 
   string.inspect(first_point) |> io.print() // prints "Point(20, -5)"
   string.inspect(second_point) |> io.print() // prints "Point(10, 325)"
@@ -159,11 +168,11 @@ fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
 ) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(PointError)) {
-  pickle.string(opening_bracket, pickle.ignore_string)
+  pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
-  |> pickle.then(pickle.string(closing_bracket, pickle.ignore_string))
+  |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
 fn point_parser() -> fn(Parser(Point)) ->
@@ -201,11 +210,11 @@ fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
 ) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(PointError)) {
-  pickle.string(opening_bracket, pickle.ignore_string)
+  pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
-  |> pickle.then(pickle.string(closing_bracket, pickle.ignore_string))
+  |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
 fn point_parser() -> fn(Parser(Point)) ->
@@ -231,10 +240,10 @@ import pickle.{type Parser, type ParserFailure}
 
 pub fn main() {
   let assert Ok(point) =
-    pickle.parse("(20,-5)", Point(0, 0), point_parser())
+    pickle.parse("(20,-5)", new_point(), point_parser())
 
   let assert Error(GuardError(error)) =
-    pickle.parse("[10,325]", Point(0, 0), point_parser())
+    pickle.parse("[10,325]", new_point(), point_parser())
 
   string.inspect(first_point) |> io.print() // prints "Point(20, -5)"
   string.inspect(error) |> io.print() // prints "ValueIsGreaterThanTen(Y)"
@@ -261,10 +270,10 @@ import pickle.{type Parser, type ParserFailure}
 fn points_parser() -> fn(Parser(List(Point))) ->
   Result(Parser(List(Point)), ParserFailure(PointError)) {
   pickle.many(
-    blank_point(),
+    new_point(),
     point_parser()
       |> pickle.then(
-        pickle.one_of([pickle.string(",", pickle.ignore_string), pickle.eof()]),
+        pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
     fn(points, point) { [point, ..points] },
   )
@@ -273,7 +282,7 @@ fn points_parser() -> fn(Parser(List(Point))) ->
 
 Here we use our `point_parser` function combined with a parser to either parse a comma or EOF to set the head of the
 parser to the next point. `pickle/many` runs our parser zero to `n` times until it fails. Each parser will be given a
-blank point as an initial value. Afterwards the prepend the parsed point to our list of points.
+blank point as an initial value. Afterwards we prepend the parsed point to our list of points.
 
 Keep in mind that `pickle/many` never fails and adheres to the best-effort error handling strategy. As soon as it
 encounters invalid input it just stops consuming any more tokens and returns the collected items that could be parsed
