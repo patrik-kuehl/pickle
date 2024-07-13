@@ -46,10 +46,9 @@ The prior parser is combined with `pickle/integer` to parse an integer, our `x` 
 point with our acquired `x` value. `pickle/integer` parses the given tokens as long as they can be represented as an
 integer, so it doesn't expect an integer of a specific length.
 
-Pickle supports different numeric formats (binary, decimal, hexadecimal and octal) for integers. `pickle/integer`
-supports all mentioned numeric formats. If you need or want to parse an integer of a specific numeric format, you can
-take a look at Pickle's module documentation. In this guide we'll only be using decimal integers, but feel free to play
-around.
+`pickle/integer` supports different numeric formats (binary, decimal, hexadecimal and octal). If you need or want to
+parse an integer of a specific numeric format, you can take a look at Pickle's module documentation. In this guide we'll
+only be using decimal integers, but feel free to play around.
 
 We then continue our adventure with `pickle/string` to parse and drop the comma.
 
