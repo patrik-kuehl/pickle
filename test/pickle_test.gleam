@@ -2,9 +2,10 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import pickle.{
-  Eof, GuardError, Literal, OneOfError, ParserPosition, Pattern, UnexpectedEof,
-  UnexpectedToken,
+  BinaryDigit, DecimalDigit, DecimalDigitOrPoint, Eof, GuardError, OneOfError,
+  ParserPosition, String, UnexpectedEof, UnexpectedToken,
 }
+import prelude.{because}
 
 pub fn main() {
   gleeunit.main()
@@ -18,18 +19,21 @@ pub fn guard_test() {
   |> pickle.parse("abc", "", _)
   |> should.be_error()
   |> should.equal(GuardError(error_message, ParserPosition(0, 3)))
+  |> because("abc doesn't equal 123")
 
   pickle.string("abc", fn(value, string) { value <> string })
   |> pickle.then(pickle.guard(fn(value) { value == "123" }, "error message"))
   |> pickle.parse("abd", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abc"), "abd", ParserPosition(0, 2)))
+  |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
 
   pickle.string("abc", fn(value, string) { value <> string })
   |> pickle.then(pickle.guard(fn(value) { value == "abc" }, "error message"))
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
   |> should.equal("abc")
+  |> because("the validation succeeded")
 }
 
 pub fn map_test() {
@@ -37,13 +41,15 @@ pub fn map_test() {
   |> pickle.then(pickle.map(fn(value) { string.length(value) }))
   |> pickle.parse("a23", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abc"), "a2", ParserPosition(0, 1)))
+  |> should.equal(UnexpectedToken(String("abc"), "a2", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
 
   pickle.string("abc", fn(value, string) { value <> string })
   |> pickle.then(pickle.map(fn(value) { string.length(value) }))
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
   |> should.equal(3)
+  |> because("the parser did not fail")
 }
 
 pub fn string_test() {
@@ -51,47 +57,54 @@ pub fn string_test() {
   |> pickle.then(pickle.string("abc", fn(value, string) { value <> string }))
   |> pickle.parse("abc", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("123"), "a", ParserPosition(0, 0)))
+  |> should.equal(UnexpectedToken(String("123"), "a", ParserPosition(0, 0)))
+  |> because("a doesn't equal 123")
 
   pickle.string("a\nb", fn(value, string) { value <> string })
   |> pickle.parse("a\nc", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("a\nb"), "a\nc", ParserPosition(1, 0)))
+  |> should.equal(UnexpectedToken(String("a\nb"), "a\nc", ParserPosition(1, 0)))
+  |> because("a\nc doesn't equal a\nb")
 
   pickle.string("abc", fn(value, string) { value <> string })
   |> pickle.parse("", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Literal("abc"), ParserPosition(0, 0)))
+  |> should.equal(UnexpectedEof(String("abc"), ParserPosition(0, 0)))
+  |> because("no input was left to parse")
 
   pickle.string("input", fn(value, string) { value <> string })
   |> pickle.parse("input", "", _)
   |> should.be_ok()
   |> should.equal("input")
+  |> because("the parser did not fail")
 }
 
 pub fn optional_test() {
-  pickle.optional(pickle.string("(", pickle.ignore_string))
+  pickle.optional(pickle.string("(", pickle.drop))
   |> pickle.then(pickle.string("abc", fn(value, string) { value <> string }))
   |> pickle.then(
     pickle.optional(pickle.string("123", fn(value, string) { value <> string })),
   )
   |> pickle.parse("(abd123", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abc"), "abd", ParserPosition(0, 3)))
+  |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 3)))
+  |> because("a prior parser failed")
 
-  pickle.optional(pickle.string("(", pickle.ignore_string))
+  pickle.optional(pickle.string("(", pickle.drop))
   |> pickle.then(pickle.string("value", fn(value, string) { value <> string }))
-  |> pickle.then(pickle.optional(pickle.string(")", pickle.ignore_string)))
+  |> pickle.then(pickle.optional(pickle.string(")", pickle.drop)))
   |> pickle.parse("(value)", "", _)
   |> should.be_ok()
   |> should.equal("value")
+  |> because("no non-optional parser failed")
 
-  pickle.optional(pickle.string("(", fn(value, string) { value <> string }))
+  pickle.optional(pickle.string("(", pickle.drop))
   |> pickle.then(pickle.string("value", fn(value, string) { value <> string }))
-  |> pickle.then(pickle.optional(pickle.string(")", pickle.ignore_string)))
+  |> pickle.then(pickle.optional(pickle.string(")", pickle.drop)))
   |> pickle.parse("value)", "", _)
   |> should.be_ok()
   |> should.equal("value")
+  |> because("no non-optional parser failed")
 }
 
 pub fn many_test() {
@@ -105,7 +118,8 @@ pub fn many_test() {
   )
   |> pickle.parse("aaa", [], _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("ab"), "aa", ParserPosition(0, 1)))
+  |> should.equal(UnexpectedToken(String("ab"), "aa", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
 
   pickle.many(
     "",
@@ -115,6 +129,7 @@ pub fn many_test() {
   |> pickle.parse("aaab", [], _)
   |> should.be_ok()
   |> should.equal(["a", "a", "a"])
+  |> because("the given parser could be run three times without failing")
 
   pickle.many(
     "",
@@ -125,72 +140,296 @@ pub fn many_test() {
   |> pickle.parse("abab", [], _)
   |> should.be_ok()
   |> should.equal(["ab"])
+  |> because("the given parser could not be run without failing")
+}
+
+pub fn binary_integer_test() {
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("not_an_integer", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(BinaryDigit, "n", ParserPosition(0, 0)))
+  |> because("the provided input is not an integer")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("25", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(BinaryDigit, "2", ParserPosition(0, 0)))
+  |> because("the provided input is a decimal integer")
+
+  pickle.string("abd", pickle.drop)
+  |> pickle.then(pickle.binary_integer(fn(_, integer) { integer }))
+  |> pickle.parse("abc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("0b", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("0B", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("0b2", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(BinaryDigit, "2", ParserPosition(0, 2)))
+  |> because("the provided prefixed binary integer is invalid")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("0b110", 0, _)
+  |> should.be_ok()
+  |> should.equal(6)
+  |> because("the parser was given a valid prefixed binary integer")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("110", 0, _)
+  |> should.be_ok()
+  |> should.equal(6)
+  |> because("the parser was given a valid unprefixed binary integer")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("+10", 0, _)
+  |> should.be_ok()
+  |> should.equal(2)
+  |> because("the parser was given a valid positive binary integer")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("-101", 0, _)
+  |> should.be_ok()
+  |> should.equal(-5)
+  |> because("the parser was given a valid negative binary integer")
+
+  pickle.binary_integer(fn(_, integer) { integer })
+  |> pickle.parse("0b10abc", 0, _)
+  |> should.be_ok()
+  |> should.equal(2)
+  |> because("the parser stopped consuming input after the binary integer")
+
+  pickle.string("[", pickle.drop)
+  |> pickle.then(
+    pickle.binary_integer(fn(value, integer) { Point(..value, x: integer) }),
+  )
+  |> pickle.then(pickle.string(",", pickle.drop))
+  |> pickle.then(
+    pickle.binary_integer(fn(value, integer) { Point(..value, y: integer) }),
+  )
+  |> pickle.then(pickle.string("]", pickle.drop))
+  |> pickle.parse("[0b11,101]", Point(0, 0), _)
+  |> should.be_ok()
+  |> should.equal(Point(3, 5))
+  |> because("the point could be parsed")
+
+  pickle.binary_integer(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.binary_integer(fn(value, integer) { value + integer }))
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.binary_integer(pickle.drop))
+  |> pickle.parse("100;0b1000;11", 0, _)
+  |> should.be_ok()
+  |> should.equal(12)
+  |> because("the last binary integer is not added to the sum")
+}
+
+pub fn decimal_integer_test() {
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("not_an_integer", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)))
+  |> because("the provided input is not an integer")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("fefefe", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 0)))
+  |> because("the provided input is a hexadecimal integer")
+
+  pickle.string("abd", pickle.drop)
+  |> pickle.then(pickle.decimal_integer(fn(_, integer) { integer }))
+  |> pickle.parse("abc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("-", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("+", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("+f", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
+  |> because("the provided positive decimal integer is invalid")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("-f", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
+  |> because("the provided negative decimal integer is invalid")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("110", 0, _)
+  |> should.be_ok()
+  |> should.equal(110)
+  |> because("the parser was given a valid decimal integer")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("+10", 0, _)
+  |> should.be_ok()
+  |> should.equal(10)
+  |> because("the parser was given a valid positive decimal integer")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("-101", 0, _)
+  |> should.be_ok()
+  |> should.equal(-101)
+  |> because("the parser was given a valid negative decimal integer")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("10abc", 0, _)
+  |> should.be_ok()
+  |> should.equal(10)
+  |> because("the parser stopped consuming input after the decimal integer")
+
+  pickle.string("[", pickle.drop)
+  |> pickle.then(
+    pickle.decimal_integer(fn(value, integer) { Point(..value, x: integer) }),
+  )
+  |> pickle.then(pickle.string(",", pickle.drop))
+  |> pickle.then(
+    pickle.decimal_integer(fn(value, integer) { Point(..value, y: integer) }),
+  )
+  |> pickle.then(pickle.string("]", pickle.drop))
+  |> pickle.parse("[-5,10]", Point(0, 0), _)
+  |> should.be_ok()
+  |> should.equal(Point(-5, 10))
+  |> because("the point could be parsed")
+
+  pickle.decimal_integer(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.decimal_integer(fn(value, integer) { value + integer }))
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.decimal_integer(pickle.drop))
+  |> pickle.parse("100;-1000;11", 0, _)
+  |> should.be_ok()
+  |> should.equal(-900)
+  |> because("the last decimal integer is not added to the sum")
 }
 
 pub fn integer_test() {
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Pattern("^[0-9]$"), "n", ParserPosition(0, 0)))
+  |> should.equal(
+    OneOfError([
+      UnexpectedToken(BinaryDigit, "n", ParserPosition(0, 0)),
+      UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)),
+    ]),
+  )
+  |> because("the provided input is not an integer")
 
-  pickle.string("abc", pickle.ignore_string)
+  pickle.string("abc", pickle.drop)
   |> pickle.then(pickle.integer(fn(_, integer) { integer }))
   |> pickle.parse("abc-", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Pattern("^[0-9]$"), ParserPosition(0, 4)))
-
-  pickle.string("abd", pickle.ignore_string)
-  |> pickle.then(pickle.integer(fn(_, integer) { integer }))
-  |> pickle.parse("abc2000", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abd"), "abc", ParserPosition(0, 2)))
+  |> should.equal(
+    OneOfError([
+      UnexpectedEof(BinaryDigit, ParserPosition(0, 4)),
+      UnexpectedEof(DecimalDigit, ParserPosition(0, 4)),
+    ]),
+  )
+  |> because("no input was left to parse")
 
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Pattern("^[0-9]$"), ParserPosition(0, 0)))
+  |> should.equal(
+    OneOfError([
+      UnexpectedEof(BinaryDigit, ParserPosition(0, 0)),
+      UnexpectedEof(DecimalDigit, ParserPosition(0, 0)),
+    ]),
+  )
+  |> because("no input was left to parse")
+
+  pickle.string("abd", pickle.drop)
+  |> pickle.then(pickle.integer(fn(_, integer) { integer }))
+  |> pickle.parse("abc2000", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
 
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("250", 0, _)
   |> should.be_ok()
   |> should.equal(250)
+  |> because("the parser was given a valid integer")
 
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("+120", 0, _)
   |> should.be_ok()
   |> should.equal(120)
+  |> because("the parser was given a valid integer")
 
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("-75", 0, _)
   |> should.be_ok()
   |> should.equal(-75)
+  |> because("the parser was given a valid integer")
 
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("5005abc", 0, _)
   |> should.be_ok()
   |> should.equal(5005)
+  |> because("the parser stopped consuming input after the integer")
 
-  pickle.string("[", pickle.ignore_string)
+  pickle.string("[", pickle.drop)
   |> pickle.then(
     pickle.integer(fn(value, integer) { Point(..value, x: integer) }),
   )
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(
     pickle.integer(fn(value, integer) { Point(..value, y: integer) }),
   )
-  |> pickle.then(pickle.string("]", pickle.ignore_string))
+  |> pickle.then(pickle.string("]", pickle.drop))
   |> pickle.parse("[20,72]", Point(0, 0), _)
   |> should.be_ok()
   |> should.equal(Point(20, 72))
+  |> because("the point could be parsed")
 
   pickle.integer(fn(value, integer) { value + integer })
-  |> pickle.then(pickle.string(";", pickle.ignore_string))
+  |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
-  |> pickle.then(pickle.string(";", pickle.ignore_string))
-  |> pickle.then(pickle.integer(pickle.ignore_integer))
-  |> pickle.parse("100;200;400", 0, _)
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.integer(pickle.drop))
+  |> pickle.parse("100;0b10;400", 0, _)
   |> should.be_ok()
-  |> should.equal(300)
+  |> should.equal(102)
+  |> because("the last integer is not added to the sum")
 }
 
 pub fn float_test() {
@@ -198,126 +437,165 @@ pub fn float_test() {
   |> pickle.parse("not_a_float", 0.0, _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(
-    Pattern("^[0-9.]$"),
+    DecimalDigitOrPoint,
     "n",
     ParserPosition(0, 0),
   ))
+  |> because("the provided input is not a float")
 
-  pickle.string("abc", pickle.ignore_string)
+  pickle.string("abc", pickle.drop)
   |> pickle.then(pickle.float(fn(_, float) { float }))
   |> pickle.parse("abc-", 0.0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Pattern("^[0-9.]$"), ParserPosition(0, 4)))
+  |> should.equal(UnexpectedEof(DecimalDigitOrPoint, ParserPosition(0, 4)))
+  |> because("no input was left to parse")
 
-  pickle.string("abd", pickle.ignore_string)
+  pickle.string("abc", pickle.drop)
+  |> pickle.then(pickle.float(fn(_, float) { float }))
+  |> pickle.parse("abc+", 0.0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigitOrPoint, ParserPosition(0, 4)))
+  |> because("no input was left to parse")
+
+  pickle.string("abd", pickle.drop)
   |> pickle.then(pickle.float(fn(_, float) { float }))
   |> pickle.parse("abc2000.0", 0.0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abd"), "abc", ParserPosition(0, 2)))
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("", 0.0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Pattern("^[0-9.]$"), ParserPosition(0, 0)))
+  |> should.equal(UnexpectedEof(DecimalDigitOrPoint, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.float(fn(_, float) { float })
+  |> pickle.parse("+", 0.0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigitOrPoint, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
+
+  pickle.float(fn(_, float) { float })
+  |> pickle.parse("-", 0.0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigitOrPoint, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("250.0", 0.0, _)
   |> should.be_ok()
   |> should.equal(250.0)
+  |> because("the parser was given a valid float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("+20.4", 0.0, _)
   |> should.be_ok()
   |> should.equal(20.4)
+  |> because("the parser was given a valid positive float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("-75.5", 0.0, _)
   |> should.be_ok()
   |> should.equal(-75.5)
+  |> because("the parser was given a valid negative float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse(".75", 0.0, _)
   |> should.be_ok()
   |> should.equal(0.75)
+  |> because("the parser was given a valid float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("-.5", 0.0, _)
   |> should.be_ok()
   |> should.equal(-0.5)
+  |> because("the parser was given a valid negative float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("5005.25abc", 0.0, _)
   |> should.be_ok()
   |> should.equal(5005.25)
+  |> because("the parser stopped consuming input after the float")
 
   pickle.float(fn(_, float) { float })
   |> pickle.parse("25.5.1", 0.0, _)
   |> should.be_ok()
   |> should.equal(25.5)
+  |> because("the parser stopped consuming input after the float")
 
-  pickle.string("[", pickle.ignore_string)
+  pickle.string("[", pickle.drop)
   |> pickle.then(pickle.float(fn(value, float) { Point(..value, x: float) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.float(fn(value, float) { Point(..value, y: float) }))
-  |> pickle.then(pickle.string("]", pickle.ignore_string))
+  |> pickle.then(pickle.string("]", pickle.drop))
   |> pickle.parse("[20.0,72.4]", Point(0.0, 0.0), _)
   |> should.be_ok()
   |> should.equal(Point(20.0, 72.4))
+  |> because("the point could be parsed")
 
   pickle.float(fn(value, float) { value +. float })
-  |> pickle.then(pickle.string(";", pickle.ignore_string))
+  |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.float(fn(value, float) { value +. float }))
-  |> pickle.then(pickle.string(";", pickle.ignore_string))
-  |> pickle.then(pickle.float(pickle.ignore_float))
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.float(pickle.drop))
   |> pickle.parse("100.5;200.5;400.0", 0.0, _)
   |> should.be_ok()
   |> should.equal(301.0)
+  |> because("the last float is not added to the sum")
 }
 
 pub fn until_test() {
   pickle.until("=", fn(value, string) { value <> string })
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
+  |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
+  |> because("the terminator could not be found")
 
   pickle.until("=", fn(value, string) { value <> string })
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test ")
+  |> because("the terminator could be found")
 
   pickle.until("EQUALS", fn(value, string) { value <> string })
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("var test ")
+  |> because("the terminator could be found")
 
   pickle.many(
     "",
     pickle.until("=", fn(value, string) { value <> string })
-      |> pickle.then(pickle.string("=", pickle.ignore_string)),
+      |> pickle.then(pickle.string("=", pickle.drop)),
     fn(value, string) { [string, ..value] },
   )
   |> pickle.parse("let test = \"value\";\nlet test2 = \"value2\";", [], _)
   |> should.be_ok()
   |> should.equal([" \"value\";\nlet test2 ", "let test "])
+  |> because("the terminator could be found two times")
 }
 
 pub fn skip_until_test() {
   pickle.skip_until("=")
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(Literal("="), ParserPosition(0, 15)))
+  |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
+  |> because("the terminator could not be found")
 
   pickle.skip_until("=")
   |> pickle.then(pickle.until(";", fn(value, string) { value <> string }))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("= \"value\"")
+  |> because("the terminator could be found")
 
   pickle.skip_until("EQUALS")
   |> pickle.then(pickle.until(" ", fn(value, string) { value <> string }))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("EQUALS")
+  |> because("the terminator could be found")
 }
 
 pub fn whitespace_test() {
@@ -325,22 +603,26 @@ pub fn whitespace_test() {
   |> pickle.then(pickle.whitespace(fn(value, string) { value <> string }))
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("aa"), "ab", ParserPosition(0, 1)))
+  |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
 
   pickle.whitespace(fn(value, string) { value <> string })
   |> pickle.parse("\t \n", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
+  |> because("the entire input consisted of whitespace")
 
   pickle.whitespace(fn(value, string) { value <> string })
   |> pickle.parse("\t \nabc", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
+  |> because("it consumed all whitespace until reaching non-whitespace tokens")
 
   pickle.whitespace(fn(value, string) { value <> string })
   |> pickle.parse("not_whitespace\t \n", "", _)
   |> should.be_ok()
   |> should.equal("")
+  |> because("the input didn't start with whitespace")
 }
 
 pub fn skip_whitespace_test() {
@@ -348,18 +630,22 @@ pub fn skip_whitespace_test() {
   |> pickle.then(pickle.skip_whitespace())
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("aa"), "ab", ParserPosition(0, 1)))
+  |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
 
   pickle.string("something", fn(value, string) { value <> string })
   |> pickle.then(pickle.skip_whitespace())
+  |> pickle.then(pickle.string("abc", fn(value, string) { value <> string }))
   |> pickle.parse("something\t \n abc", "", _)
   |> should.be_ok()
-  |> should.equal("something")
+  |> should.equal("somethingabc")
+  |> because("the whitespace in-between has been skipped")
 
   pickle.skip_whitespace()
   |> pickle.parse("not_whitespace\t \n", "", _)
   |> should.be_ok()
   |> should.equal("")
+  |> because("the input didn't start with whitespace")
 }
 
 pub fn one_of_test() {
@@ -371,10 +657,11 @@ pub fn one_of_test() {
   |> should.be_error()
   |> should.equal(
     OneOfError([
-      UnexpectedToken(Literal("abd"), "ad", ParserPosition(0, 1)),
-      UnexpectedToken(Literal("abc"), "ad", ParserPosition(0, 1)),
+      UnexpectedToken(String("abd"), "ad", ParserPosition(0, 1)),
+      UnexpectedToken(String("abc"), "ad", ParserPosition(0, 1)),
     ]),
   )
+  |> because("all given parsers failed")
 
   pickle.string("123", fn(value, string) { value <> string })
   |> pickle.then(
@@ -385,7 +672,8 @@ pub fn one_of_test() {
   )
   |> pickle.parse("abc", "", _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("123"), "a", ParserPosition(0, 0)))
+  |> should.equal(UnexpectedToken(String("123"), "a", ParserPosition(0, 0)))
+  |> because("a prior parser failed")
 
   pickle.one_of([
     pickle.string("abc", fn(value, string) { value <> string }),
@@ -394,6 +682,7 @@ pub fn one_of_test() {
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
   |> should.equal("abc")
+  |> because("the first given parser succeeded")
 
   pickle.one_of([
     pickle.string("abc", fn(value, string) { value <> string }),
@@ -402,11 +691,13 @@ pub fn one_of_test() {
   |> pickle.parse("abd", "", _)
   |> should.be_ok()
   |> should.equal("abd")
+  |> because("the second given parser succeeded")
 
   pickle.one_of([])
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
   |> should.equal("")
+  |> because("no parsers were given")
 }
 
 pub fn return_test() {
@@ -414,37 +705,42 @@ pub fn return_test() {
   |> pickle.then(pickle.return(10))
   |> pickle.parse("abc", [], _)
   |> should.be_error()
-  |> should.equal(UnexpectedToken(Literal("abd"), "abc", ParserPosition(0, 2)))
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
 
   pickle.string("abc", fn(value, string) { [string, ..value] })
   |> pickle.then(pickle.return(20))
   |> pickle.parse("abc", [], _)
   |> should.be_ok()
   |> should.equal(20)
+  |> because("the value has been overridden")
 }
 
 pub fn eof_test() {
-  pickle.string("abc", fn(value, string) { value <> string })
-  |> pickle.then(pickle.eof())
-  |> pickle.parse("abcd", "", _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(Eof, "d", ParserPosition(0, 3)))
-
   pickle.string("ab\nd", fn(value, string) { value <> string })
   |> pickle.then(pickle.eof())
   |> pickle.parse("ab\nc", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(
-    Literal("ab\nd"),
+    String("ab\nd"),
     "ab\nc",
     ParserPosition(1, 0),
   ))
+  |> because("a prior parser failed")
+
+  pickle.string("abc", fn(value, string) { value <> string })
+  |> pickle.then(pickle.eof())
+  |> pickle.parse("abcd", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(Eof, "d", ParserPosition(0, 3)))
+  |> because("there was input left to parse")
 
   pickle.string("abc", fn(value, string) { value <> string })
   |> pickle.then(pickle.eof())
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
   |> should.equal("abc")
+  |> because("there was no input left to parse")
 }
 
 type Point(a) {
