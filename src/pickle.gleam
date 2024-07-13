@@ -12,9 +12,13 @@ pub opaque type Parser(a) {
 }
 
 pub type ExpectedToken {
-  Literal(String)
-  Pattern(String)
   Eof
+  Float
+  Integer
+  BinaryDigit
+  DecimalDigit
+  DecimalDigitOrPoint
+  String(String)
 }
 
 pub type ParserFailure(a) {
@@ -28,15 +32,7 @@ pub type ParserFailure(a) {
   OneOfError(failures: List(ParserFailure(a)))
 }
 
-pub fn ignore_string(value: a, _: String) -> a {
-  value
-}
-
-pub fn ignore_integer(value: a, _: Int) -> a {
-  value
-}
-
-pub fn ignore_float(value: a, _: Float) -> a {
+pub fn drop(value: a, _: b) -> a {
   value
 }
 
@@ -137,49 +133,129 @@ pub fn many(
   }
 }
 
-pub fn integer(
+pub fn binary_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
     let Parser(tokens, pos, _) = parser
 
     case tokens {
-      [token, ..rest]
-        if token == "0"
-        || token == "1"
-        || token == "2"
-        || token == "3"
-        || token == "4"
-        || token == "5"
-        || token == "6"
-        || token == "7"
-        || token == "8"
-        || token == "9"
-      ->
-        Parser(rest, increment_parser_position(pos, token), token)
-        |> Ok()
-        |> do_integer()
-        |> parse_string_as_integer(parser, mapper)
-      [token, ..rest] if token == "+" || token == "-" ->
+      ["0", "b", ..rest] | ["0", "B", ..rest] ->
         case rest {
           [] ->
-            UnexpectedEof(
-              Pattern(digit_pattern),
-              increment_parser_position(pos, token),
-            )
+            UnexpectedEof(BinaryDigit, increment_parser_position(pos, "0b"))
             |> Error()
-          tokens ->
-            Parser(tokens, increment_parser_position(pos, token), token)
-            |> Ok()
-            |> do_integer()
-            |> parse_string_as_integer(parser, mapper)
+          [token, ..rest] ->
+            case is_binary_digit(token) {
+              False ->
+                UnexpectedToken(
+                  BinaryDigit,
+                  token,
+                  increment_parser_position(pos, "0b"),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, "0b" <> token),
+                  token,
+                )
+                |> Ok()
+                |> do_integer(is_binary_digit)
+                |> parse_string_as_integer(parser, 2, mapper)
+            }
         }
-      [token, ..] ->
-        UnexpectedToken(Pattern(digit_pattern), token, pos)
-        |> Error()
-      [] ->
-        UnexpectedEof(Pattern(digit_pattern), pos)
-        |> Error()
+      [sign, ..rest] if sign == "+" || sign == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(BinaryDigit, increment_parser_position(pos, sign))
+            |> Error()
+          [token, ..rest] ->
+            case is_binary_digit(token) {
+              False ->
+                UnexpectedToken(
+                  BinaryDigit,
+                  token,
+                  increment_parser_position(pos, sign),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, sign <> token),
+                  sign <> token,
+                )
+                |> Ok()
+                |> do_integer(is_binary_digit)
+                |> parse_string_as_integer(parser, 2, mapper)
+            }
+        }
+      [token, ..rest] if token == "0" || token == "1" ->
+        Parser(rest, increment_parser_position(pos, token), token)
+        |> Ok()
+        |> do_integer(is_binary_digit)
+        |> parse_string_as_integer(parser, 2, mapper)
+      [token, ..] -> UnexpectedToken(BinaryDigit, token, pos) |> Error()
+      [] -> UnexpectedEof(BinaryDigit, pos) |> Error()
+    }
+  }
+}
+
+pub fn decimal_integer(
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    case tokens {
+      [] -> UnexpectedEof(DecimalDigit, pos) |> Error()
+      [sign, ..rest] if sign == "+" || sign == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(DecimalDigit, increment_parser_position(pos, sign))
+            |> Error()
+          [token, ..rest] ->
+            case is_decimal_digit(token) {
+              False ->
+                UnexpectedToken(
+                  DecimalDigit,
+                  token,
+                  increment_parser_position(pos, sign),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, sign <> token),
+                  sign <> token,
+                )
+                |> Ok()
+                |> do_integer(is_decimal_digit)
+                |> parse_string_as_integer(parser, 10, mapper)
+            }
+        }
+      [token, ..rest] ->
+        case is_decimal_digit(token) {
+          False -> UnexpectedToken(DecimalDigit, token, pos) |> Error()
+          True ->
+            Parser(rest, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> do_integer(is_decimal_digit)
+            |> parse_string_as_integer(parser, 10, mapper)
+        }
+    }
+  }
+}
+
+pub fn integer(
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, _, _) = parser
+
+    case tokens {
+      ["0", "b", ..] | ["0", "B", ..] -> parser |> binary_integer(mapper)
+      _ -> parser |> one_of([decimal_integer(mapper), binary_integer(mapper)])
     }
   }
 }
@@ -212,7 +288,7 @@ pub fn float(
         case rest {
           [] ->
             UnexpectedEof(
-              Pattern(digit_or_decimal_point_pattern),
+              DecimalDigitOrPoint,
               increment_parser_position(pos, token),
             )
             |> Error()
@@ -223,10 +299,10 @@ pub fn float(
             |> parse_string_as_float(parser, mapper)
         }
       [token, ..] ->
-        UnexpectedToken(Pattern(digit_or_decimal_point_pattern), token, pos)
+        UnexpectedToken(DecimalDigitOrPoint, token, pos)
         |> Error()
       [] ->
-        UnexpectedEof(Pattern(digit_or_decimal_point_pattern), pos)
+        UnexpectedEof(DecimalDigitOrPoint, pos)
         |> Error()
     }
   }
@@ -259,9 +335,7 @@ pub fn until(
 pub fn skip_until(
   terminator: String,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    parser |> Ok() |> do_skip_until(terminator, string.to_graphemes(terminator))
-  }
+  fn(parser) { parser |> until(terminator, drop) }
 }
 
 pub fn whitespace(
@@ -284,20 +358,7 @@ pub fn whitespace(
 }
 
 pub fn skip_whitespace() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    let Parser(tokens, pos, value) = parser
-
-    case tokens {
-      [] -> Ok(parser)
-      [token, ..rest] ->
-        case is_whitespace(token) {
-          False -> Ok(parser)
-          True ->
-            Parser(rest, increment_parser_position(pos, token), value)
-            |> skip_whitespace()
-        }
-    }
-  }
+  fn(parser) { parser |> whitespace(drop) }
 }
 
 pub fn one_of(
@@ -325,9 +386,11 @@ pub fn eof() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   }
 }
 
-const digit_pattern = "^[0-9]$"
+const binary_digit_pattern = "^[01]$"
 
-const digit_or_decimal_point_pattern = "^[0-9.]$"
+const decimal_digit_pattern = "^[0-9]$"
+
+const decimal_digit_or_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
 
@@ -344,13 +407,13 @@ fn do_string(
           case parser.tokens {
             [] ->
               UnexpectedEof(
-                Literal(parser.value <> string.join(expected_tokens, "")),
+                String(parser.value <> string.join(expected_tokens, "")),
                 parser.pos,
               )
               |> Error()
             [actual_token, ..] if expected_token != actual_token ->
               UnexpectedToken(
-                Literal(parser.value <> string.join(expected_tokens, "")),
+                String(parser.value <> string.join(expected_tokens, "")),
                 parser.value <> actual_token,
                 parser.pos,
               )
@@ -393,6 +456,7 @@ fn do_many(
 
 fn do_integer(
   prev: Result(Parser(String), ParserFailure(a)),
+  digit_predicate: fn(String) -> Bool,
 ) -> Result(Parser(String), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
@@ -400,7 +464,7 @@ fn do_integer(
       case parser.tokens {
         [] -> prev
         [token, ..rest] ->
-          case is_digit(token) {
+          case digit_predicate(token) {
             False -> prev
             True ->
               Parser(
@@ -409,7 +473,7 @@ fn do_integer(
                 parser.value <> token,
               )
               |> Ok()
-              |> do_integer()
+              |> do_integer(digit_predicate)
           }
       }
   }
@@ -426,7 +490,7 @@ fn do_float(
         [] -> prev
         [".", ..] if after_fraction -> prev
         [token, ..rest] ->
-          case is_digit_or_decimal_point(token) {
+          case is_decimal_digit_or_point(token) {
             False -> prev
             True ->
               Parser(
@@ -457,7 +521,7 @@ fn do_until(
         [] -> prev
         [expected_token, ..] ->
           case parser.tokens {
-            [] -> UnexpectedEof(Literal(terminator), parser.pos) |> Error()
+            [] -> UnexpectedEof(String(terminator), parser.pos) |> Error()
             [actual_token, ..actual_rest] if actual_token == expected_token ->
               case
                 parser.tokens
@@ -482,48 +546,6 @@ fn do_until(
               )
               |> Ok()
               |> do_until(terminator, expected_tokens)
-          }
-      }
-  }
-}
-
-fn do_skip_until(
-  prev: Result(Parser(a), ParserFailure(b)),
-  terminator: String,
-  expected_tokens: List(String),
-) -> Result(Parser(a), ParserFailure(b)) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case expected_tokens {
-        [] -> prev
-        [expected_token, ..] ->
-          case parser.tokens {
-            [] -> UnexpectedEof(Literal(terminator), parser.pos) |> Error()
-            [actual_token, ..actual_rest] if actual_token == expected_token ->
-              case
-                parser.tokens
-                |> string.join("")
-                |> string.starts_with(terminator)
-              {
-                True -> prev
-                False ->
-                  Parser(
-                    actual_rest,
-                    increment_parser_position(parser.pos, actual_token),
-                    parser.value,
-                  )
-                  |> Ok()
-                  |> do_skip_until(terminator, expected_tokens)
-              }
-            [actual_token, ..actual_rest] ->
-              Parser(
-                actual_rest,
-                increment_parser_position(parser.pos, actual_token),
-                parser.value,
-              )
-              |> Ok()
-              |> do_skip_until(terminator, expected_tokens)
           }
       }
   }
@@ -575,33 +597,40 @@ fn do_one_of(
   }
 }
 
+fn remove_leading_plus_sign_from_string(value: String) -> String {
+  case value {
+    "+" <> rest -> rest
+    _ -> value
+  }
+}
+
 fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
-  case float_as_string |> string.split("") {
-    [".", ..rest] -> "0." <> string.join(rest, "")
-    ["-", ..rest] ->
+  case float_as_string {
+    "." <> rest -> "0." <> rest
+    "-" <> rest ->
       case rest {
-        [".", ..fraction] -> "-0." <> string.join(fraction, "")
-        float -> "-" <> string.join(float, "")
+        "." <> fraction -> "-0." <> fraction
+        float -> "-" <> float
       }
-    float -> float |> string.join("")
+    float -> float
   }
 }
 
 fn parse_string_as_integer(
   prev: Result(Parser(String), ParserFailure(a)),
   entrypoint_parser: Parser(b),
+  base: Int,
   mapper: fn(b, Int) -> b,
 ) -> Result(Parser(b), ParserFailure(a)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(integer_parser) ->
-      case int.parse(integer_parser.value) {
+      case
+        remove_leading_plus_sign_from_string(integer_parser.value)
+        |> int.base_parse(base)
+      {
         Error(_) ->
-          UnexpectedToken(
-            Pattern(digit_pattern),
-            integer_parser.value,
-            integer_parser.pos,
-          )
+          UnexpectedToken(Integer, integer_parser.value, integer_parser.pos)
           |> Error()
         Ok(integer) ->
           Parser(
@@ -628,11 +657,7 @@ fn parse_string_as_float(
         |> float.parse()
       {
         Error(_) ->
-          UnexpectedToken(
-            Pattern(digit_pattern),
-            float_parser.value,
-            float_parser.pos,
-          )
+          UnexpectedToken(Float, float_parser.value, float_parser.pos)
           |> Error()
         Ok(float) ->
           Parser(
@@ -647,11 +672,16 @@ fn parse_string_as_float(
 
 fn increment_parser_position(
   prev: ParserPosition,
-  recent_token: String,
+  tokens: String,
 ) -> ParserPosition {
-  case recent_token {
-    "\n" -> ParserPosition(prev.row + 1, 0)
-    _ -> ParserPosition(prev.row, prev.col + 1)
+  case string.to_graphemes(tokens) {
+    [] -> prev
+    [token, ..rest] if token == "\n" || token == "\r\n" ->
+      ParserPosition(prev.row + 1, 0)
+      |> increment_parser_position(string.join(rest, ""))
+    [_, ..rest] ->
+      ParserPosition(prev.row, prev.col + 1)
+      |> increment_parser_position(string.join(rest, ""))
   }
 }
 
@@ -662,12 +692,16 @@ fn matches_pattern(token: String, pattern: String) -> Bool {
   }
 }
 
-fn is_digit(token: String) -> Bool {
-  matches_pattern(token, digit_pattern)
+fn is_binary_digit(token: String) -> Bool {
+  matches_pattern(token, binary_digit_pattern)
 }
 
-fn is_digit_or_decimal_point(token: String) -> Bool {
-  matches_pattern(token, digit_or_decimal_point_pattern)
+fn is_decimal_digit(token: String) -> Bool {
+  matches_pattern(token, decimal_digit_pattern)
+}
+
+fn is_decimal_digit_or_point(token: String) -> Bool {
+  matches_pattern(token, decimal_digit_or_point_pattern)
 }
 
 fn is_whitespace(token: String) -> Bool {

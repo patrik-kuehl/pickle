@@ -105,44 +105,44 @@ fn parse_date_year() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, year) { Date(..date, year: year) })
   |> pickle.then(pickle.guard(has_valid_year, InvalidYear))
-  |> pickle.then(pickle.string("-", pickle.ignore_string))
+  |> pickle.then(pickle.string("-", pickle.drop))
 }
 
 fn parse_date_month() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, month) { Date(..date, month: month) })
   |> pickle.then(pickle.guard(has_valid_month, InvalidMonth))
-  |> pickle.then(pickle.string("-", pickle.ignore_string))
+  |> pickle.then(pickle.string("-", pickle.drop))
 }
 
 fn parse_date_day() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, day) { Date(..date, day: day) })
   |> pickle.then(pickle.guard(has_valid_day, InvalidDay))
-  |> pickle.then(pickle.string("T", pickle.ignore_string))
+  |> pickle.then(pickle.string("T", pickle.drop))
 }
 
 fn parse_date_hour() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, hour) { Date(..date, hour: hour) })
   |> pickle.then(pickle.guard(has_valid_hour, InvalidHour))
-  |> pickle.then(pickle.string(":", pickle.ignore_string))
+  |> pickle.then(pickle.string(":", pickle.drop))
 }
 
 fn parse_date_minute() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, minute) { Date(..date, minute: minute) })
   |> pickle.then(pickle.guard(has_valid_minute, InvalidMinute))
-  |> pickle.then(pickle.string(":", pickle.ignore_string))
+  |> pickle.then(pickle.string(":", pickle.drop))
 }
 
 fn parse_date_second() -> fn(Parser(Date)) ->
   Result(Parser(Date), ParserFailure(InvalidDateError)) {
   pickle.integer(fn(date, second) { Date(..date, second: second) })
   |> pickle.then(pickle.guard(has_valid_second, InvalidSecond))
-  |> pickle.then(pickle.optional(pickle.string("Z", pickle.ignore_string)))
+  |> pickle.then(pickle.optional(pickle.string("Z", pickle.drop)))
   |> pickle.then(
-    pickle.one_of([pickle.string("\n", pickle.ignore_string), pickle.eof()]),
+    pickle.one_of([pickle.string("\n", pickle.drop), pickle.eof()]),
   )
 }
 
