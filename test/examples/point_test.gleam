@@ -1,7 +1,8 @@
 import gleeunit/should
 import pickle.{
   type Parser, type ParserFailure, BinaryDigit, DecimalDigit, GuardError,
-  OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
+  HexadecimalDigit, OneOfError, ParserPosition, String, UnexpectedEof,
+  UnexpectedToken,
 }
 
 pub fn points_parser_test() {
@@ -66,6 +67,7 @@ pub fn point_parser_test() {
     OneOfError([
       UnexpectedToken(String("["), "(", ParserPosition(0, 0)),
       OneOfError([
+        UnexpectedToken(HexadecimalDigit, ",", ParserPosition(0, 1)),
         UnexpectedToken(BinaryDigit, ",", ParserPosition(0, 1)),
         UnexpectedToken(DecimalDigit, ",", ParserPosition(0, 1)),
       ]),
