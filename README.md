@@ -24,22 +24,22 @@ type Point {
   Point(x: Int, y: Int)
 }
 
-fn blank_point() -> Point {
+fn new_point() -> Point {
   Point(0, 0)
 }
 
 fn point_parser() -> fn(Parser(Point)) ->
   Result(Parser(Point), ParserFailure(String)) {
-  pickle.string("(", pickle.ignore_string)
+  pickle.string("(", pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
-  |> pickle.then(pickle.string(",", pickle.ignore_string))
+  |> pickle.then(pickle.string(",", pickle.drop))
   |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
-  |> pickle.then(pickle.string(")", pickle.ignore_string))
+  |> pickle.then(pickle.string(")", pickle.drop))
 }
 
 pub fn main() {
   let assert Ok(point) =
-    pickle.parse("(100,-25)", blank_point(), point_parser())
+    pickle.parse("(100,-25)", new_point(), point_parser())
 
   string.inspect(point) |> io.print() // prints "Point(100, -25)"
 }
