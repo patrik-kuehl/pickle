@@ -3,8 +3,8 @@ import gleeunit
 import gleeunit/should
 import pickle.{
   type ParserPosition, BinaryDigit, CustomError, DecimalDigit,
-  DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, OctalDigit, OneOfError,
-  ParserPosition, String, UnexpectedEof, UnexpectedToken,
+  DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, LowercaseAsciiLetter,
+  OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
 }
 import prelude.{because}
 
@@ -106,6 +106,36 @@ pub fn string_test() {
   |> should.be_ok()
   |> should.equal("input")
   |> because("the parser did not fail")
+}
+
+pub fn lowercase_ascii_letter_test() {
+  pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(LowercaseAsciiLetter, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(
+    pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter }),
+  )
+  |> pickle.parse("aJ", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    LowercaseAsciiLetter,
+    "J",
+    ParserPosition(0, 1),
+  ))
+  |> because("J is not a lowercase ASCII letter")
+
+  pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(
+    pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter }),
+  )
+  |> pickle.parse("aj", "", _)
+  |> should.be_ok()
+  |> should.equal("aj")
+  |> because("a and j are lowercase ASCII letters")
 }
 
 pub fn optional_test() {

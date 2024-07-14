@@ -20,6 +20,7 @@ pub type ExpectedToken {
   DecimalDigit
   HexadecimalDigit
   DecimalDigitOrPoint
+  LowercaseAsciiLetter
   String(String)
 }
 
@@ -121,6 +122,29 @@ pub fn string(
           mapper(value, token_parser.value),
         )
         |> Ok()
+    }
+  }
+}
+
+pub fn lowercase_ascii_letter(
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case tokens {
+      [] -> UnexpectedEof(LowercaseAsciiLetter, pos) |> Error()
+      [token, ..rest] ->
+        case is_lowercase_ascii_letter(token) {
+          False -> UnexpectedToken(LowercaseAsciiLetter, token, pos) |> Error()
+          True ->
+            Parser(
+              rest,
+              increment_parser_position(pos, token),
+              mapper(value, token),
+            )
+            |> Ok()
+        }
     }
   }
 }
@@ -344,6 +368,8 @@ const octal_digit_pattern = "^[0-7]$"
 const decimal_digit_or_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
+
+const lowercase_ascii_letter_pattern = "^[a-z]$"
 
 fn do_string(
   prev: Result(Parser(String), ParserFailure(a)),
@@ -755,4 +781,8 @@ fn is_decimal_digit_or_point(token: String) -> Bool {
 
 fn is_whitespace(token: String) -> Bool {
   matches_pattern(token, whitespace_pattern)
+}
+
+fn is_lowercase_ascii_letter(token: String) -> Bool {
+  matches_pattern(token, lowercase_ascii_letter_pattern)
 }

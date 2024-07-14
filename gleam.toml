@@ -1,5 +1,5 @@
 name = "pickle"
-version = "0.1.0"
+version = "0.2.0"
 description = "A parser combinator library for Gleam."
 licences = ["MIT"]
 repository = { type = "github", user = "patrik-kuehl", repo = "pickle" }
@@ -20,5 +20,5 @@ allow_read = true
 gleam_stdlib = ">= 0.37.0 and < 2.0.0"
 
 [dev-dependencies]
-simplifile = ">= 1.0.0 and < 2.0.0"
+simplifile = ">= 2.0.0 and < 3.0.0"
 gleeunit = ">= 1.0.0 and < 2.0.0"

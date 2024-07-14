@@ -18,7 +18,7 @@ Pickle enables scannerless recursive descent parsing, but this applies to almost
 ```gleam
 import gleam/io
 import gleam/string
-import pickle.{type Parser, ParserFailure}
+import pickle.{type Parser, type ParserFailure}
 
 type Point {
   Point(x: Int, y: Int)
