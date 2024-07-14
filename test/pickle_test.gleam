@@ -3,8 +3,8 @@ import gleeunit
 import gleeunit/should
 import pickle.{
   BinaryDigit, DecimalDigit, DecimalDigitOrPoint, Eof, GuardError,
-  HexadecimalDigit, OneOfError, ParserPosition, String, UnexpectedEof,
-  UnexpectedToken,
+  HexadecimalDigit, OctalDigit, OneOfError, ParserPosition, String,
+  UnexpectedEof, UnexpectedToken,
 }
 import prelude.{because}
 
@@ -294,10 +294,34 @@ pub fn decimal_integer_test() {
   |> because("the provided negative decimal integer is invalid")
 
   pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0d", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0D", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0Df", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 2)))
+  |> because("the provided prefixed decimal integer is invalid")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0d110", 0, _)
+  |> should.be_ok()
+  |> should.equal(110)
+  |> because("the parser was given a valid prefixed decimal integer")
+
+  pickle.decimal_integer(fn(_, integer) { integer })
   |> pickle.parse("110", 0, _)
   |> should.be_ok()
   |> should.equal(110)
-  |> because("the parser was given a valid decimal integer")
+  |> because("the parser was given a valid unprefixed decimal integer")
 
   pickle.decimal_integer(fn(_, integer) { integer })
   |> pickle.parse("+10", 0, _)
@@ -437,12 +461,106 @@ pub fn hexadecimal_integer_test() {
   |> because("the last hexadecimal integer is not added to the sum")
 }
 
+pub fn octal_integer_test() {
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("not_an_integer", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(OctalDigit, "n", ParserPosition(0, 0)))
+  |> because("the provided input is not an integer")
+
+  pickle.string("abd", pickle.drop)
+  |> pickle.then(pickle.octal_integer(fn(_, integer) { integer }))
+  |> pickle.parse("abc1ef", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0o", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0O", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 2)))
+  |> because("no input was left to parse")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0o-7", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(OctalDigit, "-", ParserPosition(0, 2)))
+  |> because("the provided prefixed octal integer is invalid")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0o77", 0, _)
+  |> should.be_ok()
+  |> should.equal(63)
+  |> because("the parser was given a valid prefixed octal integer")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("12", 0, _)
+  |> should.be_ok()
+  |> should.equal(10)
+  |> because("the parser was given a valid unprefixed octal integer")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("+23", 0, _)
+  |> should.be_ok()
+  |> should.equal(19)
+  |> because("the parser was given a valid positive octal integer")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("-37", 0, _)
+  |> should.be_ok()
+  |> should.equal(-31)
+  |> because("the parser was given a valid negative octal integer")
+
+  pickle.octal_integer(fn(_, integer) { integer })
+  |> pickle.parse("0O11something else", 0, _)
+  |> should.be_ok()
+  |> should.equal(9)
+  |> because("the parser stopped consuming input after the octal integer")
+
+  pickle.string("[", pickle.drop)
+  |> pickle.then(
+    pickle.octal_integer(fn(value, integer) { Point(..value, x: integer) }),
+  )
+  |> pickle.then(pickle.string(",", pickle.drop))
+  |> pickle.then(
+    pickle.octal_integer(fn(value, integer) { Point(..value, y: integer) }),
+  )
+  |> pickle.then(pickle.string("]", pickle.drop))
+  |> pickle.parse("[0o45,-11]", Point(0, 0), _)
+  |> should.be_ok()
+  |> should.equal(Point(37, -9))
+  |> because("the point could be parsed")
+
+  pickle.octal_integer(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.octal_integer(fn(value, integer) { value + integer }))
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.octal_integer(pickle.drop))
+  |> pickle.parse("-15;0o11;77", 0, _)
+  |> should.be_ok()
+  |> should.equal(-4)
+  |> because("the last octal integer is not added to the sum")
+}
+
 pub fn integer_test() {
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
   |> should.be_error()
   |> should.equal(
     OneOfError([
+      UnexpectedToken(OctalDigit, "n", ParserPosition(0, 0)),
       UnexpectedToken(HexadecimalDigit, "n", ParserPosition(0, 0)),
       UnexpectedToken(BinaryDigit, "n", ParserPosition(0, 0)),
       UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)),
@@ -456,6 +574,7 @@ pub fn integer_test() {
   |> should.be_error()
   |> should.equal(
     OneOfError([
+      UnexpectedEof(OctalDigit, ParserPosition(0, 4)),
       UnexpectedEof(HexadecimalDigit, ParserPosition(0, 4)),
       UnexpectedEof(BinaryDigit, ParserPosition(0, 4)),
       UnexpectedEof(DecimalDigit, ParserPosition(0, 4)),
@@ -468,6 +587,7 @@ pub fn integer_test() {
   |> should.be_error()
   |> should.equal(
     OneOfError([
+      UnexpectedEof(OctalDigit, ParserPosition(0, 0)),
       UnexpectedEof(HexadecimalDigit, ParserPosition(0, 0)),
       UnexpectedEof(BinaryDigit, ParserPosition(0, 0)),
       UnexpectedEof(DecimalDigit, ParserPosition(0, 0)),
@@ -526,10 +646,12 @@ pub fn integer_test() {
   |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
   |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
+  |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.integer(pickle.drop))
-  |> pickle.parse("100;0b10;0xca;400", 0, _)
+  |> pickle.parse("100;0b10;0xca;0o77;400", 0, _)
   |> should.be_ok()
-  |> should.equal(304)
+  |> should.equal(367)
   |> because("the last integer is not added to the sum")
 }
 

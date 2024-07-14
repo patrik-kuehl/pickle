@@ -15,6 +15,7 @@ pub type ExpectedToken {
   Eof
   Float
   Integer
+  OctalDigit
   BinaryDigit
   DecimalDigit
   HexadecimalDigit
@@ -138,70 +139,8 @@ pub fn binary_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
-    let Parser(tokens, pos, _) = parser
-
-    case tokens {
-      [] -> UnexpectedEof(BinaryDigit, pos) |> Error()
-      ["0", "b", ..rest] | ["0", "B", ..rest] ->
-        case rest {
-          [] ->
-            UnexpectedEof(BinaryDigit, increment_parser_position(pos, "0b"))
-            |> Error()
-          [token, ..rest] ->
-            case is_binary_digit(token) {
-              False ->
-                UnexpectedToken(
-                  BinaryDigit,
-                  token,
-                  increment_parser_position(pos, "0b"),
-                )
-                |> Error()
-              True ->
-                Parser(
-                  rest,
-                  increment_parser_position(pos, "0b" <> token),
-                  token,
-                )
-                |> Ok()
-                |> do_integer(is_binary_digit)
-                |> parse_string_as_integer(parser, 2, mapper)
-            }
-        }
-      [sign, ..rest] if sign == "+" || sign == "-" ->
-        case rest {
-          [] ->
-            UnexpectedEof(BinaryDigit, increment_parser_position(pos, sign))
-            |> Error()
-          [token, ..rest] ->
-            case is_binary_digit(token) {
-              False ->
-                UnexpectedToken(
-                  BinaryDigit,
-                  token,
-                  increment_parser_position(pos, sign),
-                )
-                |> Error()
-              True ->
-                Parser(
-                  rest,
-                  increment_parser_position(pos, sign <> token),
-                  sign <> token,
-                )
-                |> Ok()
-                |> do_integer(is_binary_digit)
-                |> parse_string_as_integer(parser, 2, mapper)
-            }
-        }
-      [token, ..rest] ->
-        case is_binary_digit(token) {
-          False -> UnexpectedToken(BinaryDigit, token, pos) |> Error()
-          True ->
-            Parser(rest, increment_parser_position(pos, token), token)
-            |> Ok()
-            |> do_integer(is_binary_digit)
-            |> parse_string_as_integer(parser, 2, mapper)
-        }
-    }
+    parser
+    |> do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)
   }
 }
 
@@ -209,45 +148,8 @@ pub fn decimal_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
-    let Parser(tokens, pos, _) = parser
-
-    case tokens {
-      [] -> UnexpectedEof(DecimalDigit, pos) |> Error()
-      [sign, ..rest] if sign == "+" || sign == "-" ->
-        case rest {
-          [] ->
-            UnexpectedEof(DecimalDigit, increment_parser_position(pos, sign))
-            |> Error()
-          [token, ..rest] ->
-            case is_decimal_digit(token) {
-              False ->
-                UnexpectedToken(
-                  DecimalDigit,
-                  token,
-                  increment_parser_position(pos, sign),
-                )
-                |> Error()
-              True ->
-                Parser(
-                  rest,
-                  increment_parser_position(pos, sign <> token),
-                  sign <> token,
-                )
-                |> Ok()
-                |> do_integer(is_decimal_digit)
-                |> parse_string_as_integer(parser, 10, mapper)
-            }
-        }
-      [token, ..rest] ->
-        case is_decimal_digit(token) {
-          False -> UnexpectedToken(DecimalDigit, token, pos) |> Error()
-          True ->
-            Parser(rest, increment_parser_position(pos, token), token)
-            |> Ok()
-            |> do_integer(is_decimal_digit)
-            |> parse_string_as_integer(parser, 10, mapper)
-        }
-    }
+    parser
+    |> do_integer("d", "D", 10, DecimalDigit, is_decimal_digit, mapper)
   }
 }
 
@@ -255,76 +157,17 @@ pub fn hexadecimal_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
-    let Parser(tokens, pos, _) = parser
+    parser
+    |> do_integer("x", "X", 16, HexadecimalDigit, is_hexadecimal_digit, mapper)
+  }
+}
 
-    case tokens {
-      [] -> UnexpectedEof(HexadecimalDigit, pos) |> Error()
-      ["0", "x", ..rest] | ["0", "X", ..rest] ->
-        case rest {
-          [] ->
-            UnexpectedEof(
-              HexadecimalDigit,
-              increment_parser_position(pos, "0x"),
-            )
-            |> Error()
-          [token, ..rest] ->
-            case is_hexadecimal_digit(token) {
-              False ->
-                UnexpectedToken(
-                  HexadecimalDigit,
-                  token,
-                  increment_parser_position(pos, "0x"),
-                )
-                |> Error()
-              True ->
-                Parser(
-                  rest,
-                  increment_parser_position(pos, "0x" <> token),
-                  token,
-                )
-                |> Ok()
-                |> do_integer(is_hexadecimal_digit)
-                |> parse_string_as_integer(parser, 16, mapper)
-            }
-        }
-      [sign, ..rest] if sign == "+" || sign == "-" ->
-        case rest {
-          [] ->
-            UnexpectedEof(
-              HexadecimalDigit,
-              increment_parser_position(pos, sign),
-            )
-            |> Error()
-          [token, ..rest] ->
-            case is_hexadecimal_digit(token) {
-              False ->
-                UnexpectedToken(
-                  HexadecimalDigit,
-                  token,
-                  increment_parser_position(pos, sign),
-                )
-                |> Error()
-              True ->
-                Parser(
-                  rest,
-                  increment_parser_position(pos, sign <> token),
-                  sign <> token,
-                )
-                |> Ok()
-                |> do_integer(is_hexadecimal_digit)
-                |> parse_string_as_integer(parser, 16, mapper)
-            }
-        }
-      [token, ..rest] ->
-        case is_hexadecimal_digit(token) {
-          False -> UnexpectedToken(HexadecimalDigit, token, pos) |> Error()
-          True ->
-            Parser(rest, increment_parser_position(pos, token), token)
-            |> Ok()
-            |> do_integer(is_hexadecimal_digit)
-            |> parse_string_as_integer(parser, 16, mapper)
-        }
-    }
+pub fn octal_integer(
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    parser
+    |> do_integer("o", "O", 8, OctalDigit, is_octal_digit, mapper)
   }
 }
 
@@ -336,13 +179,16 @@ pub fn integer(
 
     case tokens {
       ["0", "b", ..] | ["0", "B", ..] -> parser |> binary_integer(mapper)
+      ["0", "d", ..] | ["0", "D", ..] -> parser |> decimal_integer(mapper)
       ["0", "x", ..] | ["0", "X", ..] -> parser |> hexadecimal_integer(mapper)
+      ["0", "o", ..] | ["0", "O", ..] -> parser |> octal_integer(mapper)
       _ ->
         parser
         |> one_of([
           decimal_integer(mapper),
           binary_integer(mapper),
           hexadecimal_integer(mapper),
+          octal_integer(mapper),
         ])
     }
   }
@@ -480,6 +326,8 @@ const decimal_digit_pattern = "^[0-9]$"
 
 const hexadecimal_digit_pattern = "^[0-9a-fA-F]$"
 
+const octal_digit_pattern = "^[0-7]$"
+
 const decimal_digit_or_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
@@ -545,27 +393,92 @@ fn do_many(
 }
 
 fn do_integer(
-  prev: Result(Parser(String), ParserFailure(a)),
+  format_prefix_lowercase: String,
+  format_prefix_uppercase: String,
+  base: Int,
+  expected_token: ExpectedToken,
   digit_predicate: fn(String) -> Bool,
-) -> Result(Parser(String), ParserFailure(a)) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case parser.tokens {
-        [] -> prev
-        [token, ..rest] ->
-          case digit_predicate(token) {
-            False -> prev
-            True ->
-              Parser(
-                rest,
-                increment_parser_position(parser.pos, token),
-                parser.value <> token,
-              )
-              |> Ok()
-              |> do_integer(digit_predicate)
-          }
-      }
+  mapper: fn(a, Int) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, _) = parser
+
+    case tokens {
+      [] -> UnexpectedEof(expected_token, pos) |> Error()
+      ["0", token, ..rest] ->
+        case
+          token == format_prefix_lowercase || token == format_prefix_uppercase
+        {
+          False ->
+            Parser([token, ..rest], increment_parser_position(pos, "0"), "0")
+            |> Ok()
+            |> collect_integer_digits(digit_predicate)
+            |> parse_string_as_integer(parser, base, mapper)
+
+          True ->
+            case rest {
+              [] ->
+                UnexpectedEof(
+                  expected_token,
+                  increment_parser_position(pos, "0" <> token),
+                )
+                |> Error()
+              [digit, ..rest] ->
+                case digit_predicate(digit) {
+                  False ->
+                    UnexpectedToken(
+                      expected_token,
+                      digit,
+                      increment_parser_position(pos, "0" <> token),
+                    )
+                    |> Error()
+                  True ->
+                    Parser(
+                      rest,
+                      increment_parser_position(pos, "0" <> token <> digit),
+                      digit,
+                    )
+                    |> Ok()
+                    |> collect_integer_digits(digit_predicate)
+                    |> parse_string_as_integer(parser, base, mapper)
+                }
+            }
+        }
+      [sign, ..rest] if sign == "+" || sign == "-" ->
+        case rest {
+          [] ->
+            UnexpectedEof(expected_token, increment_parser_position(pos, sign))
+            |> Error()
+          [token, ..rest] ->
+            case digit_predicate(token) {
+              False ->
+                UnexpectedToken(
+                  expected_token,
+                  token,
+                  increment_parser_position(pos, sign),
+                )
+                |> Error()
+              True ->
+                Parser(
+                  rest,
+                  increment_parser_position(pos, sign <> token),
+                  sign <> token,
+                )
+                |> Ok()
+                |> collect_integer_digits(digit_predicate)
+                |> parse_string_as_integer(parser, base, mapper)
+            }
+        }
+      [token, ..rest] ->
+        case digit_predicate(token) {
+          False -> UnexpectedToken(expected_token, token, pos) |> Error()
+          True ->
+            Parser(rest, increment_parser_position(pos, token), token)
+            |> Ok()
+            |> collect_integer_digits(digit_predicate)
+            |> parse_string_as_integer(parser, base, mapper)
+        }
+    }
   }
 }
 
@@ -687,6 +600,31 @@ fn do_one_of(
   }
 }
 
+fn collect_integer_digits(
+  prev: Result(Parser(String), ParserFailure(a)),
+  digit_predicate: fn(String) -> Bool,
+) -> Result(Parser(String), ParserFailure(a)) {
+  case prev {
+    Error(failure) -> Error(failure)
+    Ok(parser) ->
+      case parser.tokens {
+        [] -> prev
+        [token, ..rest] ->
+          case digit_predicate(token) {
+            False -> prev
+            True ->
+              Parser(
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value <> token,
+              )
+              |> Ok()
+              |> collect_integer_digits(digit_predicate)
+          }
+      }
+  }
+}
+
 fn remove_leading_plus_sign_from_string(value: String) -> String {
   case value {
     "+" <> rest -> rest
@@ -792,6 +730,10 @@ fn is_decimal_digit(token: String) -> Bool {
 
 fn is_hexadecimal_digit(token: String) -> Bool {
   matches_pattern(token, hexadecimal_digit_pattern)
+}
+
+fn is_octal_digit(token: String) -> Bool {
+  matches_pattern(token, octal_digit_pattern)
 }
 
 fn is_decimal_digit_or_point(token: String) -> Bool {
