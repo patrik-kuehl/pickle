@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.1.0] - 2024-07-14
 
 ### Added
 
@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/return` to modify the parser's value without consuming any tokens.
 -   Added `pickle/one_of` to parse tokens by trying a set of given parsers.
 -   Added `pickle/guard` to validate the value of the parser.
+-   Added `pickle/map_error` to map an error.
 -   Added `pickle/map` to map the value of the parser.
 -   Added `pickle/skip_whitespace` to skip zero to `n` whitespace tokens.
 -   Added `pickle/whitespace` to parse zero to `n` whitespace tokens.
@@ -28,4 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/optional` to ignore and backtrack the parser in case the given parser fails.
 -   Added `pickle/string` to parse a specific string.
 -   Added `pickle/then` to chain parsers.
--   Added `pickle/parse` to parse a set of tokens via a given parser.
+-   Added `pickle/parse` to parse input via a given parser.
+
+[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/patrik-kuehl/pickle/releases/tag/v0.1.0

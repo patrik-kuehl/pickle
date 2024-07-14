@@ -30,8 +30,9 @@ pub type ParserFailure(a) {
     pos: ParserPosition,
   )
   UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
-  GuardError(error: a, pos: ParserPosition)
   OneOfError(failures: List(ParserFailure(a)))
+  GuardError(error: a, pos: ParserPosition)
+  CustomError(error: a)
 }
 
 pub fn drop(value: a, _: b) -> a {
@@ -85,6 +86,18 @@ pub fn map(
     let Parser(tokens, pos, value) = parser
 
     Parser(tokens, pos, mapper(value)) |> Ok()
+  }
+}
+
+pub fn map_error(
+  combinator: fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)),
+  mapper: fn(ParserFailure(b)) -> b,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    case combinator(parser) {
+      Error(failure) -> mapper(failure) |> CustomError() |> Error()
+      result -> result
+    }
   }
 }
 
