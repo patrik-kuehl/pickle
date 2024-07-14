@@ -2,9 +2,9 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import pickle.{
-  BinaryDigit, DecimalDigit, DecimalDigitOrPoint, Eof, GuardError,
-  HexadecimalDigit, OctalDigit, OneOfError, ParserPosition, String,
-  UnexpectedEof, UnexpectedToken,
+  type ParserPosition, BinaryDigit, CustomError, DecimalDigit,
+  DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, OctalDigit, OneOfError,
+  ParserPosition, String, UnexpectedEof, UnexpectedToken,
 }
 import prelude.{because}
 
@@ -51,6 +51,34 @@ pub fn map_test() {
   |> should.be_ok()
   |> should.equal(3)
   |> because("the parser did not fail")
+}
+
+pub fn map_error_test() {
+  pickle.string("abc", fn(value, string) { value <> string })
+  |> pickle.map_error(fn(failure) {
+    case failure {
+      UnexpectedToken(String(token), _, pos) -> Something(token, pos)
+      _ -> Whatever
+    }
+  })
+  |> pickle.then(pickle.eof())
+  |> pickle.parse("abc", "", _)
+  |> should.be_ok()
+  |> should.equal("abc")
+  |> because("the parser did not fail")
+
+  pickle.string("abc", fn(value, string) { value <> string })
+  |> pickle.map_error(fn(failure) {
+    case failure {
+      UnexpectedToken(String(token), _, pos) -> Something(token, pos)
+      _ -> Whatever
+    }
+  })
+  |> pickle.then(pickle.eof())
+  |> pickle.parse("a23", "", _)
+  |> should.be_error()
+  |> should.equal(CustomError(Something("abc", ParserPosition(0, 1))))
+  |> because("the parser error value was mapped")
 }
 
 pub fn string_test() {
@@ -968,4 +996,9 @@ pub fn eof_test() {
 
 type Point(a) {
   Point(x: a, y: a)
+}
+
+type TestError {
+  Something(token: String, pos: ParserPosition)
+  Whatever
 }
