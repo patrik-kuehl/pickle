@@ -1,5 +1,6 @@
 import gleam/float
 import gleam/int
+import gleam/option.{type Option, None, Some}
 import gleam/regex
 import gleam/string
 
@@ -165,7 +166,19 @@ pub fn many(
   fn(parser) {
     parser
     |> Ok()
-    |> do_many(initial_value, combinator, acc)
+    |> do_many(initial_value, combinator, acc, None)
+  }
+}
+
+pub fn many1(
+  initial_value: a,
+  combinator: fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)),
+  acc: fn(c, a) -> c,
+) -> fn(Parser(c)) -> Result(Parser(c), ParserFailure(b)) {
+  fn(parser) {
+    parser
+    |> Ok()
+    |> do_many(initial_value, combinator, acc, Some(1))
   }
 }
 
@@ -427,12 +440,17 @@ fn do_many(
   initial_value: c,
   combinator: fn(Parser(c)) -> Result(Parser(c), ParserFailure(b)),
   acc: fn(a, c) -> a,
+  attempt: Option(Int),
 ) -> Result(Parser(a), ParserFailure(b)) {
   case prev {
     Error(failure) -> Error(failure)
     Ok(parser) ->
       case Parser(parser.tokens, parser.pos, initial_value) |> combinator() {
-        Error(_) -> prev
+        Error(failure) ->
+          case attempt {
+            Some(1) -> Error(failure)
+            None | Some(_) -> prev
+          }
         Ok(many_parser) ->
           Parser(
             many_parser.tokens,
@@ -440,7 +458,12 @@ fn do_many(
             acc(parser.value, many_parser.value),
           )
           |> Ok()
-          |> do_many(initial_value, combinator, acc)
+          |> do_many(
+            initial_value,
+            combinator,
+            acc,
+            option.map(attempt, fn(i) { i + 1 }),
+          )
       }
   }
 }
