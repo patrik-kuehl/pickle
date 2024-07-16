@@ -255,6 +255,52 @@ pub fn many_test() {
   |> because("the given parser could not be run without failing")
 }
 
+pub fn many1_test() {
+  pickle.string("ab", fn(value, string) { [string, ..value] })
+  |> pickle.then(
+    pickle.many1(
+      "",
+      pickle.string("a", fn(value, string) { value <> string }),
+      fn(value, string) { [string, ..value] },
+    ),
+  )
+  |> pickle.parse("aaa", [], _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("ab"), "aa", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
+
+  pickle.many1(
+    "",
+    pickle.string("aa", fn(value, string) { value <> string }),
+    fn(value, string) { [string, ..value] },
+  )
+  |> pickle.then(pickle.string("ab", fn(value, string) { [string, ..value] }))
+  |> pickle.parse("abab", [], _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
+  |> because("the given parser could not be run without failing")
+
+  pickle.many1(
+    "",
+    pickle.string("aa", fn(value, string) { value <> string }),
+    fn(value, string) { [string, ..value] },
+  )
+  |> pickle.parse("aaaaab", [], _)
+  |> should.be_ok()
+  |> should.equal(["aa", "aa"])
+  |> because("the given parser could be run twice without failing")
+
+  pickle.many1(
+    "",
+    pickle.string("a", fn(value, string) { value <> string }),
+    fn(value, string) { [string, ..value] },
+  )
+  |> pickle.parse("aaab", [], _)
+  |> should.be_ok()
+  |> should.equal(["a", "a", "a"])
+  |> because("the given parser could be run three times without failing")
+}
+
 pub fn binary_integer_test() {
   pickle.binary_integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
