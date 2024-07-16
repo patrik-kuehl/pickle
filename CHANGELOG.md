@@ -7,7 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+-   Added `pickle/uppercase_ascii_letter` to parse an uppercase ASCII letter.
 -   Added `pickle/lowercase_ascii_letter` to parse a lowercase ASCII letter.
+-   Added `pickle/ascii_letter` to parse an ASCII letter.
 
 ## [0.1.0] - 2024-07-14
 
