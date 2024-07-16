@@ -20,7 +20,9 @@ pub type ExpectedToken {
   DecimalDigit
   HexadecimalDigit
   DecimalDigitOrPoint
+  AsciiLetter
   LowercaseAsciiLetter
+  UppercaseAsciiLetter
   String(String)
 }
 
@@ -126,27 +128,22 @@ pub fn string(
   }
 }
 
+pub fn ascii_letter(
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  take_if(is_ascii_letter, AsciiLetter, mapper)
+}
+
 pub fn lowercase_ascii_letter(
   mapper: fn(a, String) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    let Parser(tokens, pos, value) = parser
+  take_if(is_lowercase_ascii_letter, LowercaseAsciiLetter, mapper)
+}
 
-    case tokens {
-      [] -> UnexpectedEof(LowercaseAsciiLetter, pos) |> Error()
-      [token, ..rest] ->
-        case is_lowercase_ascii_letter(token) {
-          False -> UnexpectedToken(LowercaseAsciiLetter, token, pos) |> Error()
-          True ->
-            Parser(
-              rest,
-              increment_parser_position(pos, token),
-              mapper(value, token),
-            )
-            |> Ok()
-        }
-    }
-  }
+pub fn uppercase_ascii_letter(
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  take_if(is_uppercase_ascii_letter, UppercaseAsciiLetter, mapper)
 }
 
 pub fn optional(
@@ -175,37 +172,25 @@ pub fn many(
 pub fn binary_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    parser
-    |> do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)
-  }
+  do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)
 }
 
 pub fn decimal_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    parser
-    |> do_integer("d", "D", 10, DecimalDigit, is_decimal_digit, mapper)
-  }
+  do_integer("d", "D", 10, DecimalDigit, is_decimal_digit, mapper)
 }
 
 pub fn hexadecimal_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    parser
-    |> do_integer("x", "X", 16, HexadecimalDigit, is_hexadecimal_digit, mapper)
-  }
+  do_integer("x", "X", 16, HexadecimalDigit, is_hexadecimal_digit, mapper)
 }
 
 pub fn octal_integer(
   mapper: fn(a, Int) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) {
-    parser
-    |> do_integer("o", "O", 8, OctalDigit, is_octal_digit, mapper)
-  }
+  do_integer("o", "O", 8, OctalDigit, is_octal_digit, mapper)
 }
 
 pub fn integer(
@@ -306,7 +291,7 @@ pub fn until(
 pub fn skip_until(
   terminator: String,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) { parser |> until(terminator, drop) }
+  until(terminator, drop)
 }
 
 pub fn whitespace(
@@ -329,7 +314,7 @@ pub fn whitespace(
 }
 
 pub fn skip_whitespace() -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
-  fn(parser) { parser |> whitespace(drop) }
+  whitespace(drop)
 }
 
 pub fn one_of(
@@ -369,7 +354,36 @@ const decimal_digit_or_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
 
+const ascii_letter_pattern = "^[a-zA-Z]$"
+
 const lowercase_ascii_letter_pattern = "^[a-z]$"
+
+const uppercase_ascii_letter_pattern = "^[A-Z]$"
+
+fn take_if(
+  predicate: fn(String) -> Bool,
+  expected_token: ExpectedToken,
+  mapper: fn(a, String) -> a,
+) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
+  fn(parser) {
+    let Parser(tokens, pos, value) = parser
+
+    case tokens {
+      [] -> UnexpectedEof(expected_token, pos) |> Error()
+      [token, ..rest] ->
+        case predicate(token) {
+          False -> UnexpectedToken(expected_token, token, pos) |> Error()
+          True ->
+            Parser(
+              rest,
+              increment_parser_position(pos, token),
+              mapper(value, token),
+            )
+            |> Ok()
+        }
+    }
+  }
+}
 
 fn do_string(
   prev: Result(Parser(String), ParserFailure(a)),
@@ -783,6 +797,14 @@ fn is_whitespace(token: String) -> Bool {
   matches_pattern(token, whitespace_pattern)
 }
 
+fn is_ascii_letter(token: String) -> Bool {
+  matches_pattern(token, ascii_letter_pattern)
+}
+
 fn is_lowercase_ascii_letter(token: String) -> Bool {
   matches_pattern(token, lowercase_ascii_letter_pattern)
+}
+
+fn is_uppercase_ascii_letter(token: String) -> Bool {
+  matches_pattern(token, uppercase_ascii_letter_pattern)
 }

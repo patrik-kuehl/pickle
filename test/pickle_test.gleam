@@ -2,9 +2,10 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import pickle.{
-  type ParserPosition, BinaryDigit, CustomError, DecimalDigit,
+  type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
   DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, LowercaseAsciiLetter,
   OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
+  UppercaseAsciiLetter,
 }
 import prelude.{because}
 
@@ -108,6 +109,28 @@ pub fn string_test() {
   |> because("the parser did not fail")
 }
 
+pub fn ascii_letter_test() {
+  pickle.ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(AsciiLetter, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(pickle.ascii_letter(fn(value, letter) { value <> letter }))
+  |> pickle.parse("a2", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(AsciiLetter, "2", ParserPosition(0, 1)))
+  |> because("2 is not an ASCII letter")
+
+  pickle.ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(pickle.ascii_letter(fn(value, letter) { value <> letter }))
+  |> pickle.parse("Aj", "", _)
+  |> should.be_ok()
+  |> should.equal("Aj")
+  |> because("A and j are ASCII letters")
+}
+
 pub fn lowercase_ascii_letter_test() {
   pickle.lowercase_ascii_letter(fn(value, letter) { value <> letter })
   |> pickle.parse("", "", _)
@@ -136,6 +159,36 @@ pub fn lowercase_ascii_letter_test() {
   |> should.be_ok()
   |> should.equal("aj")
   |> because("a and j are lowercase ASCII letters")
+}
+
+pub fn uppercase_ascii_letter_test() {
+  pickle.uppercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(UppercaseAsciiLetter, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.uppercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(
+    pickle.uppercase_ascii_letter(fn(value, letter) { value <> letter }),
+  )
+  |> pickle.parse("Aj", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    UppercaseAsciiLetter,
+    "j",
+    ParserPosition(0, 1),
+  ))
+  |> because("j is not an uppercase ASCII letter")
+
+  pickle.uppercase_ascii_letter(fn(value, letter) { value <> letter })
+  |> pickle.then(
+    pickle.uppercase_ascii_letter(fn(value, letter) { value <> letter }),
+  )
+  |> pickle.parse("AJ", "", _)
+  |> should.be_ok()
+  |> should.equal("AJ")
+  |> because("A and J are uppercase ASCII letters")
 }
 
 pub fn optional_test() {
