@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+-   Added `pickle/many1` to parse tokens one to `n` times until the given parser fails.
 -   Added `pickle/uppercase_ascii_letter` to parse an uppercase ASCII letter.
 -   Added `pickle/lowercase_ascii_letter` to parse a lowercase ASCII letter.
 -   Added `pickle/ascii_letter` to parse an ASCII letter.
