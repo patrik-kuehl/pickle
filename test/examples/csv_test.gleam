@@ -46,7 +46,7 @@ fn parse_invoices() -> fn(Parser(List(Invoice))) ->
 
 fn skip_header() -> fn(Parser(List(Invoice))) ->
   Result(Parser(List(Invoice)), ParserFailure(Nil)) {
-  pickle.skip_until("\n")
+  pickle.skip_until(pickle.string("\n", pickle.drop))
   |> pickle.then(pickle.string("\n", pickle.drop))
 }
 
@@ -65,9 +65,10 @@ fn parse_invoice_number() -> fn(Parser(Invoice)) ->
 
 fn parse_invoice_recipient() -> fn(Parser(Invoice)) ->
   Result(Parser(Invoice), ParserFailure(Nil)) {
-  pickle.until(",", fn(invoice, recipient) {
-    Invoice(..invoice, recipient: recipient)
-  })
+  pickle.until(
+    pickle.string(",", fn(value, string) { value <> string }),
+    fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
+  )
   |> pickle.then(pickle.string(",", pickle.drop))
 }
 

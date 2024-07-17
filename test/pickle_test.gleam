@@ -926,19 +926,25 @@ pub fn float_test() {
 }
 
 pub fn until_test() {
-  pickle.until("=", fn(value, string) { value <> string })
+  pickle.until(
+    pickle.string("=", fn(value, string) { value <> string }),
+    fn(value, string) { value <> string },
+  )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
   |> because("the terminator could not be found")
 
-  pickle.until("=", fn(value, string) { value <> string })
+  pickle.until(pickle.eof(), fn(value, string) { value <> string })
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
-  |> should.equal("let test ")
+  |> should.equal("let test = \"value\";")
   |> because("the terminator could be found")
 
-  pickle.until("EQUALS", fn(value, string) { value <> string })
+  pickle.until(
+    pickle.string("EQUALS", fn(value, string) { value <> string }),
+    fn(value, string) { value <> string },
+  )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("var test ")
@@ -946,7 +952,10 @@ pub fn until_test() {
 
   pickle.many(
     "",
-    pickle.until("=", fn(value, string) { value <> string })
+    pickle.until(
+      pickle.string("=", fn(value, string) { value <> string }),
+      fn(value, string) { value <> string },
+    )
       |> pickle.then(pickle.string("=", pickle.drop)),
     fn(value, string) { [string, ..value] },
   )
@@ -957,21 +966,31 @@ pub fn until_test() {
 }
 
 pub fn skip_until_test() {
-  pickle.skip_until("=")
+  pickle.skip_until(pickle.string("=", pickle.drop))
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
   |> because("the terminator could not be found")
 
-  pickle.skip_until("=")
-  |> pickle.then(pickle.until(";", fn(value, string) { value <> string }))
+  pickle.skip_until(pickle.string("=", pickle.drop))
+  |> pickle.then(
+    pickle.until(
+      pickle.string(";", fn(value, string) { value <> string }),
+      fn(value, string) { value <> string },
+    ),
+  )
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("= \"value\"")
   |> because("the terminator could be found")
 
-  pickle.skip_until("EQUALS")
-  |> pickle.then(pickle.until(" ", fn(value, string) { value <> string }))
+  pickle.skip_until(pickle.string("EQUALS", pickle.drop))
+  |> pickle.then(
+    pickle.until(
+      pickle.string(" ", fn(value, string) { value <> string }),
+      fn(value, string) { value <> string },
+    ),
+  )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("EQUALS")

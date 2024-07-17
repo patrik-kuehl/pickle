@@ -278,7 +278,7 @@ pub fn float(
 }
 
 pub fn until(
-  terminator: String,
+  terminator: fn(Parser(String)) -> Result(Parser(String), ParserFailure(b)),
   mapper: fn(a, String) -> a,
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   fn(parser) {
@@ -287,7 +287,7 @@ pub fn until(
     case
       Parser(tokens, pos, "")
       |> Ok()
-      |> do_until(terminator, string.to_graphemes(terminator))
+      |> do_until(terminator)
     {
       Error(failure) -> Error(failure)
       Ok(until_parser) ->
@@ -302,7 +302,7 @@ pub fn until(
 }
 
 pub fn skip_until(
-  terminator: String,
+  terminator: fn(Parser(String)) -> Result(Parser(String), ParserFailure(b)),
 ) -> fn(Parser(a)) -> Result(Parser(a), ParserFailure(b)) {
   until(terminator, drop)
 }
@@ -589,44 +589,28 @@ fn do_float(
 }
 
 fn do_until(
-  prev: Result(Parser(String), ParserFailure(a)),
-  terminator: String,
-  expected_tokens: List(String),
-) -> Result(Parser(String), ParserFailure(a)) {
+  prev: Result(Parser(String), ParserFailure(b)),
+  terminator: fn(Parser(String)) -> Result(Parser(String), ParserFailure(b)),
+) -> Result(Parser(String), ParserFailure(b)) {
   case prev {
     Error(failure) -> Error(failure)
-    Ok(parser) ->
-      case expected_tokens {
-        [] -> prev
-        [expected_token, ..] ->
+    Ok(parser) -> {
+      case terminator(parser) {
+        Error(failure) ->
           case parser.tokens {
-            [] -> UnexpectedEof(String(terminator), parser.pos) |> Error()
-            [actual_token, ..actual_rest] if actual_token == expected_token ->
-              case
-                parser.tokens
-                |> string.join("")
-                |> string.starts_with(terminator)
-              {
-                True -> prev
-                False ->
-                  Parser(
-                    actual_rest,
-                    increment_parser_position(parser.pos, actual_token),
-                    parser.value <> actual_token,
-                  )
-                  |> Ok()
-                  |> do_until(terminator, expected_tokens)
-              }
-            [actual_token, ..actual_rest] ->
+            [] -> Error(failure)
+            [token, ..rest] ->
               Parser(
-                actual_rest,
-                increment_parser_position(parser.pos, actual_token),
-                parser.value <> actual_token,
+                rest,
+                increment_parser_position(parser.pos, token),
+                parser.value <> token,
               )
               |> Ok()
-              |> do_until(terminator, expected_tokens)
+              |> do_until(terminator)
           }
+        Ok(_) -> Parser(parser.tokens, parser.pos, parser.value) |> Ok()
       }
+    }
   }
 }
 
