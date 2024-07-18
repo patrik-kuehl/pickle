@@ -1,8 +1,7 @@
 import gleeunit/should
 import pickle.{
-  type Parser, type ParserFailure, BinaryDigit, DecimalDigit, GuardError,
-  HexadecimalDigit, OctalDigit, OneOfError, ParserPosition, String,
-  UnexpectedEof, UnexpectedToken,
+  type Parser, BinaryDigit, DecimalDigit, GuardError, HexadecimalDigit,
+  OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
 }
 
 pub fn points_parser_test() {
@@ -103,8 +102,7 @@ fn new_point() -> Point {
   Point(0, 0)
 }
 
-fn points_parser() -> fn(Parser(List(Point))) ->
-  Result(Parser(List(Point)), ParserFailure(PointError)) {
+fn points_parser() -> Parser(List(Point), List(Point), PointError) {
   pickle.many(
     new_point(),
     point_parser()
@@ -115,8 +113,7 @@ fn points_parser() -> fn(Parser(List(Point))) ->
   )
 }
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn point_parser() -> Parser(Point, Point, PointError) {
   pickle.one_of([do_point_parser("(", ")"), do_point_parser("[", "]")])
   |> pickle.then(validate_x_value())
   |> pickle.then(validate_y_value())
@@ -125,7 +122,7 @@ fn point_parser() -> fn(Parser(Point)) ->
 fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
-) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(PointError)) {
+) -> Parser(Point, Point, PointError) {
   pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))
@@ -133,8 +130,7 @@ fn do_point_parser(
   |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
-fn validate_x_value() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn validate_x_value() -> Parser(Point, Point, PointError) {
   pickle.guard(fn(point: Point) { point.x >= -10 }, ValueIsLessThanMinusTen(X))
   |> pickle.then(pickle.guard(
     fn(point: Point) { point.x <= 10 },
@@ -142,8 +138,7 @@ fn validate_x_value() -> fn(Parser(Point)) ->
   ))
 }
 
-fn validate_y_value() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn validate_y_value() -> Parser(Point, Point, PointError) {
   pickle.guard(fn(point: Point) { point.y >= -10 }, ValueIsLessThanMinusTen(Y))
   |> pickle.then(pickle.guard(
     fn(point: Point) { point.y <= 10 },

@@ -1,5 +1,5 @@
 import gleeunit/should
-import pickle.{type Parser, type ParserFailure, GuardError, ParserPosition}
+import pickle.{type Parser, GuardError, ParserPosition}
 
 /// Simple ISO 8601 Format
 /// 
@@ -86,13 +86,11 @@ fn prepend_date(dates: List(Date), date: Date) -> List(Date) {
   [date, ..dates]
 }
 
-fn parse_dates() -> fn(Parser(List(Date))) ->
-  Result(Parser(List(Date)), ParserFailure(InvalidDateError)) {
+fn parse_dates() -> Parser(List(Date), List(Date), InvalidDateError) {
   pickle.many(create_blank_date(), parse_date(), prepend_date)
 }
 
-fn parse_date() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date() -> Parser(Date, Date, InvalidDateError) {
   parse_date_year()
   |> pickle.then(parse_date_month())
   |> pickle.then(parse_date_day())
@@ -101,43 +99,37 @@ fn parse_date() -> fn(Parser(Date)) ->
   |> pickle.then(parse_date_second())
 }
 
-fn parse_date_year() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_year() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, year) { Date(..date, year: year) })
   |> pickle.then(pickle.guard(has_valid_year, InvalidYear))
   |> pickle.then(pickle.string("-", pickle.drop))
 }
 
-fn parse_date_month() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_month() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, month) { Date(..date, month: month) })
   |> pickle.then(pickle.guard(has_valid_month, InvalidMonth))
   |> pickle.then(pickle.string("-", pickle.drop))
 }
 
-fn parse_date_day() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_day() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, day) { Date(..date, day: day) })
   |> pickle.then(pickle.guard(has_valid_day, InvalidDay))
   |> pickle.then(pickle.string("T", pickle.drop))
 }
 
-fn parse_date_hour() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_hour() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, hour) { Date(..date, hour: hour) })
   |> pickle.then(pickle.guard(has_valid_hour, InvalidHour))
   |> pickle.then(pickle.string(":", pickle.drop))
 }
 
-fn parse_date_minute() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_minute() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, minute) { Date(..date, minute: minute) })
   |> pickle.then(pickle.guard(has_valid_minute, InvalidMinute))
   |> pickle.then(pickle.string(":", pickle.drop))
 }
 
-fn parse_date_second() -> fn(Parser(Date)) ->
-  Result(Parser(Date), ParserFailure(InvalidDateError)) {
+fn parse_date_second() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, second) { Date(..date, second: second) })
   |> pickle.then(pickle.guard(has_valid_second, InvalidSecond))
   |> pickle.then(pickle.optional(pickle.string("Z", pickle.drop)))
