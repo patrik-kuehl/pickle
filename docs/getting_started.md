@@ -36,7 +36,7 @@ fn point_parser() -> Parser(Point, Point, Nil) {
 This is how parsers in Pickle look like, no matter how complex they are.
 
 The `Parser` type has three type parameters. The first one is the type of the value we start with, the second one the
-type of value we end up with, and the third one the type of our custom error type.
+type of the value we end up with, and the third one is our custom error type.
 
 We start with `pickle/string` to parse a specific string, in this case the opening bracket. Since we don't need it
 eventually, we drop it via `pickle/drop`, which is a mapper provided by Pickle to drop the parsed value.
@@ -330,7 +330,7 @@ One thing to keep in mind is that Pickle is scannerless, thus there's no separat
 means that the parser covers responsibilities usually taken care of by a lexer like handling whitespace. As of now, our
 point parser cannot handle input with whitespace sprinkled in.
 
-The parser will fail if we provide input like `(x, y)`, `( x,y )`, or `[x, y]`.
+The parser will fail if we provide input like `(x, y)`, or `( x,y )`.
 
 You could extend the parser to handle whitespace, in this case by ignoring it. For this you can use
 `pickle/skip_whitespace`.
