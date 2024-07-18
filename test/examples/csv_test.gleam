@@ -30,17 +30,13 @@ fn create_blank_invoice() -> Invoice {
   Invoice(0, "", 0.0)
 }
 
-fn prepend_invoice(invoices: List(Invoice), invoice: Invoice) -> List(Invoice) {
-  [invoice, ..invoices]
-}
-
 fn parse_invoices() -> fn(Parser(List(Invoice))) ->
   Result(Parser(List(Invoice)), ParserFailure(Nil)) {
   skip_header()
   |> pickle.then(pickle.many(
     create_blank_invoice(),
     parse_invoice(),
-    prepend_invoice,
+    pickle.prepend_to_list,
   ))
 }
 
@@ -66,7 +62,7 @@ fn parse_invoice_number() -> fn(Parser(Invoice)) ->
 fn parse_invoice_recipient() -> fn(Parser(Invoice)) ->
   Result(Parser(Invoice), ParserFailure(Nil)) {
   pickle.until(
-    pickle.string(",", fn(value, string) { value <> string }),
+    pickle.string(",", pickle.apppend_to_string),
     fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
   )
   |> pickle.then(pickle.string(",", pickle.drop))

@@ -43,6 +43,14 @@ pub fn drop(value: a, _: b) -> a {
   value
 }
 
+pub fn apppend_to_string(value: String, appendage: String) -> String {
+  value <> appendage
+}
+
+pub fn prepend_to_list(value: List(a), appendage: a) -> List(a) {
+  [appendage, ..value]
+}
+
 pub fn parse(
   input: String,
   initial_value: a,

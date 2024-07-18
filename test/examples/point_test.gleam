@@ -111,7 +111,7 @@ fn points_parser() -> fn(Parser(List(Point))) ->
       |> pickle.then(
         pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
-    fn(points, point) { [point, ..points] },
+    pickle.prepend_to_list,
   )
 }
 
