@@ -274,14 +274,15 @@ fn points_parser() -> fn(Parser(List(Point))) ->
       |> pickle.then(
         pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
-    fn(points, point) { [point, ..points] },
+    pickle.prepend_to_list,
   )
 }
 ```
 
 Here we use our `point_parser` function combined with a parser to either parse a comma or EOF to set the head of the
 parser to the next point. `pickle/many` runs our parser zero to `n` times until it fails. Each parser will be given a
-blank point as an initial value. Afterwards we prepend the parsed point to our list of points.
+blank point as an initial value. Afterwards we prepend the parsed point to our list of points via
+`pickle/prepend_to_list`, which is another mapper provided by Pickle.
 
 Keep in mind that `pickle/many` never fails and adheres to the best-effort error handling strategy. As soon as it
 encounters invalid input it just stops consuming any more tokens and returns the collected items that could be parsed
@@ -324,3 +325,16 @@ pub fn main() {
 Congratulations! You've finished the getting started guide and learned about the fundamentals of Pickle. Happy parsing!
 
 The tested final implementation of this parser can be found in `test/examples/point_test.gleam`.
+
+## Additional Challenges
+
+You could think about adding further shapes like `{x,y}`, or add support for another delimiter like a semicolon.
+
+One thing to keep in mind is that Pickle is scannerless, thus there's no separate lexer to tokenize the input. This
+means that the parser covers responsibilities usually taken care of by a lexer like handling whitespace. As of now, our
+point parser cannot handle input with whitespace sprinkled in.
+
+The parser will fail if we provide input like `(x, y)`, `( x,y )`, or `[x, y]`.
+
+You could extend the parser to handle whitespace, in this case by ignoring it. For this you can use
+`pickle/skip_whitespace`.
