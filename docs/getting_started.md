@@ -20,12 +20,11 @@ some integer value that represents `y`, and a closing bracket.
 Let's take a look at how a parser for this can look like.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 // ...
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(Nil)) {
+fn point_parser() -> Parser(Point, Point, Nil) {
   pickle.string("(", pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))
@@ -35,6 +34,9 @@ fn point_parser() -> fn(Parser(Point)) ->
 ```
 
 This is how parsers in Pickle look like, no matter how complex they are.
+
+The `Parser` type has three type parameters. The first one is the type of the value we start with, the second one the
+type of the value we end up with, and the third one is our custom error type.
 
 We start with `pickle/string` to parse a specific string, in this case the opening bracket. Since we don't need it
 eventually, we drop it via `pickle/drop`, which is a mapper provided by Pickle to drop the parsed value.
@@ -62,7 +64,7 @@ Well done! Now we have a basic parser that we can use to parse points.
 To apply the parser we use `pickle/parse`.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 /// ...
 
@@ -90,14 +92,14 @@ Before you write two parsers with a lot of duplication for each shape, take a lo
 it to the prior one we've written.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 // ...
 
 fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
-) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(Nil)) {
+) -> Parser(Point, Point, Nil) {
   pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))
@@ -105,8 +107,7 @@ fn do_point_parser(
   |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(Nil)) {
+fn point_parser() -> Parser(Point, Point, Nil) {
   pickle.one_of([do_point_parser("(", ")"), do_point_parser("[", "]")])
 }
 ```
@@ -118,7 +119,7 @@ opening and closing brackets.
 Let's see it in action.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 /// ...
 
@@ -155,18 +156,18 @@ type PointError {
 }
 ```
 
-We then need to replace the type parameter of `ParserFailure` with our custom error type to tell Pickle what error type
+We then need to replace the third type parameter of `Parser` with our custom error type to tell Pickle what error type
 to expect in case of a validation failure.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 // ...
 
 fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
-) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(PointError)) {
+) -> Parser(Point, Point, PointError) {
   pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))
@@ -174,8 +175,7 @@ fn do_point_parser(
   |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn point_parser() -> Parser(Point, Point, PointError) {
   pickle.one_of([do_point_parser("(", ")"), do_point_parser("[", "]")])
 }
 ```
@@ -183,12 +183,11 @@ fn point_parser() -> fn(Parser(Point)) ->
 Now we need to add some validation. For this purpose we use `pickle/guard`.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 // ...
 
-fn validate_x_value() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn validate_x_value() -> Parser(Point, Point, PointError) {
   pickle.guard(fn(point: Point) { point.x >= -10 }, ValueIsLessThanMinusTen(X))
   |> pickle.then(pickle.guard(
     fn(point: Point) { point.x <= 10 },
@@ -196,8 +195,7 @@ fn validate_x_value() -> fn(Parser(Point)) ->
   ))
 }
 
-fn validate_y_value() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn validate_y_value() -> Parser(Point, Point, PointError) {
   pickle.guard(fn(point: Point) { point.y >= -10 }, ValueIsLessThanMinusTen(Y))
   |> pickle.then(pickle.guard(
     fn(point: Point) { point.y <= 10 },
@@ -208,7 +206,7 @@ fn validate_y_value() -> fn(Parser(Point)) ->
 fn do_point_parser(
   opening_bracket: String,
   closing_bracket: String,
-) -> fn(Parser(Point)) -> Result(Parser(Point), ParserFailure(PointError)) {
+) -> Parser(Point, Point, PointError) {
   pickle.string(opening_bracket, pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))
@@ -216,8 +214,7 @@ fn do_point_parser(
   |> pickle.then(pickle.string(closing_bracket, pickle.drop))
 }
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(PointError)) {
+fn point_parser() -> Parser(Point, Point, PointError) {
   pickle.one_of([do_point_parser("(", ")"), do_point_parser("[", "]")])
   |> pickle.then(validate_x_value())
   |> pickle.then(validate_y_value())
@@ -233,7 +230,7 @@ than -10 and greater than 10.
 Trying to parse a point with invalid values now results in a `GuardError`, which contains our error value.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser, GuardError}
 
 /// ...
 
@@ -262,26 +259,26 @@ Pickle happens to offer just the right tool for this job, `pickle/many`. This pa
 `n` times until it fails and is offering us a way to accumulate the collected points.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 // ...
 
-fn points_parser() -> fn(Parser(List(Point))) ->
-  Result(Parser(List(Point)), ParserFailure(PointError)) {
+fn points_parser() -> Parser(List(Point), List(Point), PointError) {
   pickle.many(
     new_point(),
     point_parser()
       |> pickle.then(
         pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
-    fn(points, point) { [point, ..points] },
+    pickle.prepend_to_list,
   )
 }
 ```
 
 Here we use our `point_parser` function combined with a parser to either parse a comma or EOF to set the head of the
 parser to the next point. `pickle/many` runs our parser zero to `n` times until it fails. Each parser will be given a
-blank point as an initial value. Afterwards we prepend the parsed point to our list of points.
+blank point as an initial value. Afterwards we prepend the parsed point to our list of points via
+`pickle/prepend_to_list`, which is another mapper provided by Pickle.
 
 Keep in mind that `pickle/many` never fails and adheres to the best-effort error handling strategy. As soon as it
 encounters invalid input it just stops consuming any more tokens and returns the collected items that could be parsed
@@ -295,7 +292,7 @@ be a viable option, so you're still able to convey validation issues to the cons
 items with an invalid state before running the validation. The best approach depends on your use case eventually.
 
 ```gleam
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 /// ...
 
@@ -324,3 +321,16 @@ pub fn main() {
 Congratulations! You've finished the getting started guide and learned about the fundamentals of Pickle. Happy parsing!
 
 The tested final implementation of this parser can be found in `test/examples/point_test.gleam`.
+
+## Additional Challenges
+
+You could think about adding further shapes like `{x,y}`, or add support for another delimiter like a semicolon.
+
+One thing to keep in mind is that Pickle is scannerless, thus there's no separate lexer to tokenize the input. This
+means that the parser covers responsibilities usually taken care of by a lexer like handling whitespace. As of now, our
+point parser cannot handle input with whitespace sprinkled in.
+
+The parser will fail if we provide input like `(x, y)`, or `( x,y )`.
+
+You could extend the parser to handle whitespace, in this case by ignoring it. For this you can use
+`pickle/skip_whitespace`.

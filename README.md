@@ -18,7 +18,7 @@ Pickle enables scannerless recursive descent parsing, but this applies to almost
 ```gleam
 import gleam/io
 import gleam/string
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 
 type Point {
   Point(x: Int, y: Int)
@@ -28,8 +28,7 @@ fn new_point() -> Point {
   Point(0, 0)
 }
 
-fn point_parser() -> fn(Parser(Point)) ->
-  Result(Parser(Point), ParserFailure(String)) {
+fn point_parser() -> Parser(Point, Point, String) {
   pickle.string("(", pickle.drop)
   |> pickle.then(pickle.integer(fn(point, x) { Point(..point, x: x) }))
   |> pickle.then(pickle.string(",", pickle.drop))

@@ -1,5 +1,5 @@
 import gleeunit/should
-import pickle.{type Parser, type ParserFailure}
+import pickle.{type Parser}
 import simplifile
 
 /// CSV Data Format
@@ -30,49 +30,40 @@ fn create_blank_invoice() -> Invoice {
   Invoice(0, "", 0.0)
 }
 
-fn prepend_invoice(invoices: List(Invoice), invoice: Invoice) -> List(Invoice) {
-  [invoice, ..invoices]
-}
-
-fn parse_invoices() -> fn(Parser(List(Invoice))) ->
-  Result(Parser(List(Invoice)), ParserFailure(Nil)) {
+fn parse_invoices() -> Parser(List(Invoice), List(Invoice), Nil) {
   skip_header()
   |> pickle.then(pickle.many(
     create_blank_invoice(),
     parse_invoice(),
-    prepend_invoice,
+    pickle.prepend_to_list,
   ))
 }
 
-fn skip_header() -> fn(Parser(List(Invoice))) ->
-  Result(Parser(List(Invoice)), ParserFailure(Nil)) {
-  pickle.skip_until("\n")
+fn skip_header() -> Parser(List(Invoice), List(Invoice), Nil) {
+  pickle.skip_until(pickle.string("\n", pickle.drop))
   |> pickle.then(pickle.string("\n", pickle.drop))
 }
 
-fn parse_invoice() -> fn(Parser(Invoice)) ->
-  Result(Parser(Invoice), ParserFailure(Nil)) {
+fn parse_invoice() -> Parser(Invoice, Invoice, Nil) {
   parse_invoice_number()
   |> pickle.then(parse_invoice_recipient())
   |> pickle.then(parse_invoice_total())
 }
 
-fn parse_invoice_number() -> fn(Parser(Invoice)) ->
-  Result(Parser(Invoice), ParserFailure(Nil)) {
+fn parse_invoice_number() -> Parser(Invoice, Invoice, Nil) {
   pickle.integer(fn(invoice, number) { Invoice(..invoice, number: number) })
   |> pickle.then(pickle.string(",", pickle.drop))
 }
 
-fn parse_invoice_recipient() -> fn(Parser(Invoice)) ->
-  Result(Parser(Invoice), ParserFailure(Nil)) {
-  pickle.until(",", fn(invoice, recipient) {
-    Invoice(..invoice, recipient: recipient)
-  })
+fn parse_invoice_recipient() -> Parser(Invoice, Invoice, Nil) {
+  pickle.until(
+    pickle.string(",", pickle.apppend_to_string),
+    fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
+  )
   |> pickle.then(pickle.string(",", pickle.drop))
 }
 
-fn parse_invoice_total() -> fn(Parser(Invoice)) ->
-  Result(Parser(Invoice), ParserFailure(Nil)) {
+fn parse_invoice_total() -> Parser(Invoice, Invoice, Nil) {
   pickle.float(fn(invoice, total) { Invoice(..invoice, total: total) })
   |> pickle.then(pickle.string("\n", pickle.drop))
 }
