@@ -9,7 +9,7 @@ gleam = ">= 1.0.0 and < 2.0.0"
 pages = [
     { title = "CHANGELOG", path = "changelog.html", source = "CHANGELOG.md" },
     { title = "LICENSE", path = "license.html", source = "LICENSE.md" },
-    { title = " ", path = "#", source = "" },
+    { title = "&nbsp;", path = "#", source = "" },
     { title = "Getting Started", path = "docs/getting-started.html", source = "docs/getting_started.md" },
 ]
 
