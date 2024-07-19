@@ -5,7 +5,7 @@ import pickle.{
   type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
   DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, LowercaseAsciiLetter,
   OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
-  UppercaseAsciiLetter,
+  UppercaseAsciiLetter, Whitespace,
 }
 import prelude.{because}
 
@@ -266,7 +266,7 @@ pub fn many1_test() {
   |> pickle.parse("abab", [], _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
-  |> because("the given parser could not be run without failing")
+  |> because("the given parser failed at its first invocation")
 
   pickle.many1(
     "",
@@ -1008,6 +1008,33 @@ pub fn whitespace_test() {
   |> because("the input didn't start with whitespace")
 }
 
+pub fn whitespace1_test() {
+  pickle.string("aa", pickle.apppend_to_string)
+  |> pickle.then(pickle.whitespace1(pickle.apppend_to_string))
+  |> pickle.parse("ab\t \n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
+
+  pickle.whitespace1(pickle.apppend_to_string)
+  |> pickle.parse("not_whitespace\t \n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(Whitespace, "n", ParserPosition(0, 0)))
+  |> because("the given parser failed at its first invocation")
+
+  pickle.whitespace1(pickle.apppend_to_string)
+  |> pickle.parse("\t \n", "", _)
+  |> should.be_ok()
+  |> should.equal("\t \n")
+  |> because("the entire input consisted of whitespace")
+
+  pickle.whitespace1(pickle.apppend_to_string)
+  |> pickle.parse("\t \nabc", "", _)
+  |> should.be_ok()
+  |> should.equal("\t \n")
+  |> because("it consumed all whitespace until reaching non-whitespace tokens")
+}
+
 pub fn skip_whitespace_test() {
   pickle.string("aa", pickle.apppend_to_string)
   |> pickle.then(pickle.skip_whitespace())
@@ -1029,6 +1056,29 @@ pub fn skip_whitespace_test() {
   |> should.be_ok()
   |> should.equal("")
   |> because("the input didn't start with whitespace")
+}
+
+pub fn skip_whitespace1_test() {
+  pickle.string("aa", pickle.apppend_to_string)
+  |> pickle.then(pickle.skip_whitespace1())
+  |> pickle.parse("ab\t \n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
+  |> because("a prior parser failed")
+
+  pickle.skip_whitespace1()
+  |> pickle.parse("not_whitespace\t \n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(Whitespace, "n", ParserPosition(0, 0)))
+  |> because("the given parser failed at its first invocation")
+
+  pickle.string("something", pickle.apppend_to_string)
+  |> pickle.then(pickle.skip_whitespace1())
+  |> pickle.then(pickle.string("abc", pickle.apppend_to_string))
+  |> pickle.parse("something\t \n abc", "", _)
+  |> should.be_ok()
+  |> should.equal("somethingabc")
+  |> because("the whitespace in-between has been skipped")
 }
 
 pub fn one_of_test() {
