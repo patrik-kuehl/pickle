@@ -34,6 +34,7 @@ pub type ExpectedToken {
   AsciiLetter
   LowercaseAsciiLetter
   UppercaseAsciiLetter
+  Whitespace
   String(String)
 }
 
@@ -175,7 +176,7 @@ pub fn uppercase_ascii_letter(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
 }
 
 /// Applies the given parser, and if it fails, ignores its failure and
-/// backtracks the parser position.
+/// backtracks.
 pub fn optional(parser: Parser(a, a, b)) -> Parser(a, a, b) {
   fn(parsed) {
     case parser(parsed) {
@@ -347,26 +348,30 @@ pub fn skip_until(terminator: Parser(String, String, b)) -> Parser(a, a, b) {
 /// token. The mapper decides how to apply the parsed whitespace to the
 /// value of the parent parser.
 pub fn whitespace(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
-  fn(parsed) {
-    let Parsed(tokens, pos, value) = parsed
+  many("", take_if(is_whitespace, Whitespace, apppend_to_string), mapper)
+}
 
-    case Parsed(tokens, pos, "") |> Ok() |> do_whitespace() {
-      Error(failure) -> Error(failure)
-      Ok(whitespace_parsed) ->
-        Parsed(
-          whitespace_parsed.tokens,
-          whitespace_parsed.pos,
-          mapper(value, whitespace_parsed.value),
-        )
-        |> Ok()
-    }
-  }
+/// Parses whitespace one to `n` times until encountering a non-whitespace
+/// token. The mapper decides how to apply the parsed whitespace to the
+/// value of the parent parser.
+/// 
+/// It fails if not at least one whitespace token could be parsed.
+pub fn whitespace1(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
+  many1("", take_if(is_whitespace, Whitespace, apppend_to_string), mapper)
 }
 
 /// Parses whitespace zero to `n` times until encountering a non-whitespace
 /// token and drops the parsed whitespace.
 pub fn skip_whitespace() -> Parser(a, a, b) {
   whitespace(drop)
+}
+
+/// Parses whitespace one to `n` times until encountering a non-whitespace
+/// token and drops the parsed whitespace.
+/// 
+/// It fails if not at least one whitespace token could be parsed.
+pub fn skip_whitespace1() -> Parser(a, a, b) {
+  whitespace1(drop)
 }
 
 /// Applies each given parser in order until one succeeds. If all parsers
@@ -653,30 +658,6 @@ fn do_until(
         Ok(_) -> Parsed(parsed.tokens, parsed.pos, parsed.value) |> Ok()
       }
     }
-  }
-}
-
-fn do_whitespace(
-  prev: Result(Parsed(String), ParserFailure(a)),
-) -> Result(Parsed(String), ParserFailure(a)) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parsed) ->
-      case parsed.tokens {
-        [] -> prev
-        [token, ..rest] ->
-          case is_whitespace(token) {
-            False -> prev
-            True ->
-              Parsed(
-                rest,
-                increment_parser_position(parsed.pos, token),
-                parsed.value <> token,
-              )
-              |> Ok()
-              |> do_whitespace()
-          }
-      }
   }
 }
 
