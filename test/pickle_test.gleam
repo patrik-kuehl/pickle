@@ -3,9 +3,9 @@ import gleeunit
 import gleeunit/should
 import pickle.{
   type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
-  DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, LowercaseAsciiLetter,
-  NotError, OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof,
-  UnexpectedToken, UppercaseAsciiLetter, Whitespace,
+  DecimalDigitOrPoint, Eof, Eol, GuardError, HexadecimalDigit,
+  LowercaseAsciiLetter, NotError, OctalDigit, OneOfError, ParserPosition, String,
+  UnexpectedEof, UnexpectedToken, UppercaseAsciiLetter, Whitespace,
 }
 import prelude.{because}
 
@@ -1174,6 +1174,38 @@ pub fn eof_test() {
   |> should.be_ok()
   |> should.equal("abc")
   |> because("there was no input left to parse")
+}
+
+pub fn eol_test() {
+  pickle.string("abc", pickle.drop)
+  |> pickle.then(pickle.eol(pickle.drop))
+  |> pickle.parse("abd\n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.string("abc", pickle.drop)
+  |> pickle.then(pickle.eol(pickle.drop))
+  |> pickle.parse("abc", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(Eol, ParserPosition(0, 3)))
+  |> because("no end-of-line character could be found")
+
+  pickle.string("abc", pickle.apppend_to_string)
+  |> pickle.then(pickle.eol(pickle.drop))
+  |> pickle.then(pickle.string("def", pickle.apppend_to_string))
+  |> pickle.parse("abc\ndef", "", _)
+  |> should.be_ok()
+  |> should.equal("abcdef")
+  |> because("an LF character could be found")
+
+  pickle.string("abc", pickle.apppend_to_string)
+  |> pickle.then(pickle.eol(pickle.drop))
+  |> pickle.then(pickle.string("def", pickle.apppend_to_string))
+  |> pickle.parse("abc\r\ndef", "", _)
+  |> should.be_ok()
+  |> should.equal("abcdef")
+  |> because("a CRLF character could be found")
 }
 
 pub fn not_test() {
