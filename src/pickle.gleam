@@ -49,6 +49,7 @@ pub type ParserFailure(a) {
   UnexpectedEof(expected_token: ExpectedToken, pos: ParserPosition)
   OneOfError(failures: List(ParserFailure(a)))
   GuardError(error: a, pos: ParserPosition)
+  NotError(error: a, pos: ParserPosition)
   CustomError(error: a)
 }
 
@@ -398,6 +399,21 @@ pub fn eof() -> Parser(a, a, b) {
     case tokens {
       [token, ..] -> UnexpectedToken(Eof, token, pos) |> Error()
       [] -> Ok(parsed)
+    }
+  }
+}
+
+/// Succeeds and backtracks if the given parser fails.
+/// 
+/// The `error` parameter is meant to convey more information
+/// to consumers and its value is wrapped in a `NotError`.
+pub fn not(parser: Parser(a, b, c), error: c) -> Parser(a, a, c) {
+  fn(parsed) {
+    let Parsed(_, pos, _) = parsed
+
+    case parser(parsed) {
+      Error(_) -> Ok(parsed)
+      Ok(_) -> NotError(error, pos) |> Error()
     }
   }
 }
