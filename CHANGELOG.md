@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2024-07-20
 
 ### Added
 
+-   Added `pickle/eol` to parse an end-of-line character.
 -   Added `pickle/not` to fail if the given parser succeeds.
 -   Added `pickle/lookahead` to lookahead whether the given parser succeeds.
 -   Added `pickle/skip_whitespace1` to skip one to `n` whitespace tokens.
@@ -49,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/then` to chain parsers.
 -   Added `pickle/parse` to parse input via a given parser.
 
-[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/patrik-kuehl/pickle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patrik-kuehl/pickle/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/patrik-kuehl/pickle/releases/tag/v0.1.0

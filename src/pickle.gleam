@@ -24,6 +24,7 @@ pub type Parser(a, b, c) =
 /// specific position of the input that couldn't be found.
 pub type ExpectedToken {
   Eof
+  Eol
   Float
   Integer
   OctalDigit
@@ -403,6 +404,11 @@ pub fn eof() -> Parser(a, a, b) {
   }
 }
 
+/// Parses an end-of-line character.
+pub fn eol(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
+  take_if(is_eol, Eol, mapper)
+}
+
 /// Succeeds and backtracks if the given parser fails.
 /// 
 /// The `error` parameter is meant to convey more information
@@ -435,6 +441,8 @@ const octal_digit_pattern = "^[0-7]$"
 const decimal_digit_or_point_pattern = "^[0-9.]$"
 
 const whitespace_pattern = "^\\s$"
+
+const eol_pattern = "^\n|\r\n$"
 
 const ascii_letter_pattern = "^[a-zA-Z]$"
 
@@ -866,6 +874,10 @@ fn is_decimal_digit_or_point(token: String) -> Bool {
 
 fn is_whitespace(token: String) -> Bool {
   matches_pattern(token, whitespace_pattern)
+}
+
+fn is_eol(token: String) -> Bool {
+  matches_pattern(token, eol_pattern)
 }
 
 fn is_ascii_letter(token: String) -> Bool {
