@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 -   Added `pickle/not` to fail if the given parser succeeds.
+-   Added `pickle/lookahead` to lookahead whether the given parser succeeds.
 -   Added `pickle/skip_whitespace1` to skip one to `n` whitespace tokens.
 -   Added `pickle/whitespace1` to parse one to `n` whitespace tokens.
 

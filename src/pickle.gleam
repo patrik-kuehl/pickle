@@ -379,7 +379,7 @@ pub fn skip_whitespace1() -> Parser(a, a, b) {
 /// failed, the collected failures wrapped in an `OneOfError` will be
 /// returned.
 pub fn one_of(parsers: List(Parser(a, a, b))) -> Parser(a, a, b) {
-  fn(parsed) { parsed |> Ok() |> do_one_of(parsed, parsers, []) }
+  fn(parsed) { Ok(parsed) |> do_one_of(parsed, parsers, []) }
 }
 
 /// Replaces the value of the parser with the given value.
@@ -416,6 +416,12 @@ pub fn not(parser: Parser(a, b, c), error: c) -> Parser(a, a, c) {
       Ok(_) -> NotError(error, pos) |> Error()
     }
   }
+}
+
+/// Looksahead whether the given parser succeeds and backtracks if
+/// it does.
+pub fn lookahead(parser: Parser(a, b, c)) -> Parser(a, a, c) {
+  fn(parsed) { do_lookahead(parsed, parsed, parser) }
 }
 
 const binary_digit_pattern = "^[01]$"
@@ -695,6 +701,25 @@ fn do_one_of(
           Error(failure)
           |> do_one_of(entrypoint_parsed, rest, [failure, ..failures])
         result -> result
+      }
+  }
+}
+
+fn do_lookahead(
+  prev_parsed: Parsed(a),
+  entrypoint_parsed: Parsed(a),
+  parser: Parser(a, b, c),
+) -> Result(Parsed(a), ParserFailure(c)) {
+  let Parsed(tokens, pos, value) = prev_parsed
+
+  case parser(prev_parsed) {
+    Ok(_) -> Ok(entrypoint_parsed)
+    Error(failure) ->
+      case tokens {
+        [] -> Error(failure)
+        [token, ..rest] ->
+          Parsed(rest, increment_parser_position(pos, token), value)
+          |> do_lookahead(entrypoint_parsed, parser)
       }
   }
 }
