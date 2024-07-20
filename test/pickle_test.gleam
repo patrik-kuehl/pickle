@@ -1208,6 +1208,35 @@ pub fn not_test() {
   |> because("123 could not be parsed successfully")
 }
 
+pub fn lookahead_test() {
+  pickle.string("124", pickle.drop)
+  |> pickle.then(pickle.lookahead(pickle.string("abc", pickle.drop)))
+  |> pickle.parse("123\nabc456", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("124"), "123", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.lookahead(pickle.string("abc", pickle.drop))
+  |> pickle.parse("123\nabd456", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(String("abc"), ParserPosition(1, 6)))
+  |> because("abc could not be found")
+
+  pickle.lookahead(pickle.string("abc", pickle.drop))
+  |> pickle.then(pickle.string("123\n", pickle.apppend_to_string))
+  |> pickle.parse("123\nabc456", "", _)
+  |> should.be_ok()
+  |> should.equal("123\n")
+  |> because("abc could be found")
+
+  pickle.lookahead(pickle.eof())
+  |> pickle.then(pickle.string("123", pickle.apppend_to_string))
+  |> pickle.parse("123", "", _)
+  |> should.be_ok()
+  |> should.equal("123")
+  |> because("looking ahead for an EOF always succeeds")
+}
+
 type Point(a) {
   Point(x: a, y: a)
 }
