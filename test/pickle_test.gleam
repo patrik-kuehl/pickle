@@ -4,8 +4,8 @@ import gleeunit/should
 import pickle.{
   type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
   DecimalDigitOrPoint, Eof, GuardError, HexadecimalDigit, LowercaseAsciiLetter,
-  OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
-  UppercaseAsciiLetter, Whitespace,
+  NotError, OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof,
+  UnexpectedToken, UppercaseAsciiLetter, Whitespace,
 }
 import prelude.{because}
 
@@ -1176,11 +1176,44 @@ pub fn eof_test() {
   |> because("there was no input left to parse")
 }
 
+pub fn not_test() {
+  pickle.string("abc", pickle.apppend_to_string)
+  |> pickle.then(pickle.not(
+    pickle.string("123", pickle.drop),
+    DidNotExpectThisToSucceed,
+  ))
+  |> pickle.parse("abd123", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.string("abc", pickle.apppend_to_string)
+  |> pickle.then(pickle.not(
+    pickle.string("123", pickle.drop),
+    DidNotExpectThisToSucceed,
+  ))
+  |> pickle.parse("abc123", "", _)
+  |> should.be_error()
+  |> should.equal(NotError(DidNotExpectThisToSucceed, ParserPosition(0, 3)))
+  |> because("123 could be parsed successfully")
+
+  pickle.string("abc", pickle.apppend_to_string)
+  |> pickle.then(pickle.not(
+    pickle.string("123", pickle.drop),
+    DidNotExpectThisToSucceed,
+  ))
+  |> pickle.parse("abcdef", "", _)
+  |> should.be_ok()
+  |> should.equal("abc")
+  |> because("123 could not be parsed successfully")
+}
+
 type Point(a) {
   Point(x: a, y: a)
 }
 
 type TestError {
   Something(token: String, pos: ParserPosition)
+  DidNotExpectThisToSucceed
   Whatever
 }
