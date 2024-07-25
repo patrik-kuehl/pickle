@@ -193,9 +193,9 @@ pub fn optional(parser: Parser(a, a, b)) -> Parser(a, a, b) {
 /// apply the parsed value to the value of the parent parser.
 pub fn many(
   initial_value: a,
-  parser: Parser(a, a, b),
-  acc: fn(c, a) -> c,
-) -> Parser(c, c, b) {
+  parser: Parser(a, b, c),
+  acc: fn(d, b) -> d,
+) -> Parser(d, d, c) {
   fn(parsed) {
     parsed
     |> Ok()
@@ -210,9 +210,9 @@ pub fn many(
 /// The given parser must succeed at least once.
 pub fn many1(
   initial_value: a,
-  parser: Parser(a, a, b),
-  acc: fn(c, a) -> c,
-) -> Parser(c, c, b) {
+  parser: Parser(a, b, c),
+  acc: fn(d, b) -> d,
+) -> Parser(d, d, c) {
   fn(parsed) {
     parsed
     |> Ok()
@@ -515,8 +515,8 @@ fn do_string(
 fn do_many(
   prev: Result(Parsed(a), ParserFailure(b)),
   initial_value: c,
-  parser: Parser(c, c, b),
-  acc: fn(a, c) -> a,
+  parser: Parser(c, d, b),
+  acc: fn(a, d) -> a,
   attempt: Option(Int),
 ) -> Result(Parsed(a), ParserFailure(b)) {
   case prev {
