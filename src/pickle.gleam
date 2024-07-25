@@ -430,26 +430,6 @@ pub fn lookahead(parser: Parser(a, b, c)) -> Parser(a, a, c) {
   fn(parsed) { do_lookahead(parsed, parsed, parser) }
 }
 
-const binary_digit_pattern = "^[01]$"
-
-const decimal_digit_pattern = "^[0-9]$"
-
-const hexadecimal_digit_pattern = "^[0-9a-fA-F]$"
-
-const octal_digit_pattern = "^[0-7]$"
-
-const decimal_digit_or_point_pattern = "^[0-9.]$"
-
-const whitespace_pattern = "^\\s$"
-
-const eol_pattern = "^\n|\r\n$"
-
-const ascii_letter_pattern = "^[a-zA-Z]$"
-
-const lowercase_ascii_letter_pattern = "^[a-z]$"
-
-const uppercase_ascii_letter_pattern = "^[A-Z]$"
-
 fn take_if(
   predicate: fn(String) -> Bool,
   expected_token: ExpectedToken,
@@ -846,48 +826,48 @@ fn increment_parser_position(
 }
 
 fn matches_pattern(token: String, pattern: String) -> Bool {
-  case regex.from_string(pattern) {
+  case regex.from_string("^" <> pattern <> "$") {
     Error(_) -> False
     Ok(pattern) -> regex.check(pattern, token)
   }
 }
 
 fn is_binary_digit(token: String) -> Bool {
-  matches_pattern(token, binary_digit_pattern)
+  matches_pattern(token, "[01]")
 }
 
 fn is_decimal_digit(token: String) -> Bool {
-  matches_pattern(token, decimal_digit_pattern)
+  matches_pattern(token, "[0-9]")
 }
 
 fn is_hexadecimal_digit(token: String) -> Bool {
-  matches_pattern(token, hexadecimal_digit_pattern)
+  matches_pattern(token, "[0-9a-fA-F]")
 }
 
 fn is_octal_digit(token: String) -> Bool {
-  matches_pattern(token, octal_digit_pattern)
+  matches_pattern(token, "[0-7]")
 }
 
 fn is_decimal_digit_or_point(token: String) -> Bool {
-  matches_pattern(token, decimal_digit_or_point_pattern)
+  matches_pattern(token, "[0-9.]")
 }
 
 fn is_whitespace(token: String) -> Bool {
-  matches_pattern(token, whitespace_pattern)
+  matches_pattern(token, "\\s")
 }
 
 fn is_eol(token: String) -> Bool {
-  matches_pattern(token, eol_pattern)
+  matches_pattern(token, "\n|\r\n")
 }
 
 fn is_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, ascii_letter_pattern)
+  matches_pattern(token, "[a-zA-Z]")
 }
 
 fn is_lowercase_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, lowercase_ascii_letter_pattern)
+  matches_pattern(token, "[a-z]")
 }
 
 fn is_uppercase_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, uppercase_ascii_letter_pattern)
+  matches_pattern(token, "[A-Z]")
 }
