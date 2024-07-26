@@ -8,10 +8,11 @@
 A parser combinator library for Gleam that supports all targets.
 
 Pickle's API does heavily rely on pipelines, thus you can create powerful parsers by chaining multiple parsers together
-with the pipe operator. This is a stark contrast to other parser combinator libraries for Gleam, which are often built
-around the use expression.
+with the pipe operator.
 
-Pickle enables scannerless recursive descent parsing, but this applies to almost every other parser combinator library.
+Pickle also takes a different approach on its API design. In Pickle you provide an initial value to the parser (e.g., an
+empty string, list, or AST container) that's being transformed during parsing. Parsers often come with mapper
+parameters, which let you control how to transform the current value with the parsed value of the respective parser.
 
 ## Demo 🥒
 
