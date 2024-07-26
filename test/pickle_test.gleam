@@ -5,7 +5,8 @@ import pickle.{
   type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
   DecimalDigitOrPoint, Eof, Eol, GuardError, HexadecimalDigit,
   LowercaseAsciiLetter, NonEof, NotError, OctalDigit, OneOfError, ParserPosition,
-  String, UnexpectedEof, UnexpectedToken, UppercaseAsciiLetter, Whitespace,
+  String, UnexpectedEof, UnexpectedToken, Until1Error, UppercaseAsciiLetter,
+  Whitespace,
 }
 import prelude.{because}
 
@@ -960,7 +961,7 @@ pub fn until_test() {
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
-  |> because("the terminator did not succeed")
+  |> because("the terminator did succeed")
 
   pickle.until(
     pickle.any(pickle.apppend_to_string),
@@ -974,6 +975,66 @@ pub fn until_test() {
   pickle.many(
     "",
     pickle.until(
+      pickle.any(pickle.apppend_to_string),
+      pickle.string("=", pickle.drop),
+    )
+      |> pickle.then(pickle.string("=", pickle.drop)),
+    pickle.prepend_to_list,
+  )
+  |> pickle.parse("let test = \"value\";\nlet test2 = \"value2\";", [], _)
+  |> should.be_ok()
+  |> should.equal([" \"value\";\nlet test2 ", "let test "])
+  |> because("the terminator did succeed twice")
+}
+
+pub fn until1_test() {
+  pickle.until1(
+    pickle.any(pickle.apppend_to_string),
+    pickle.string("=", pickle.drop),
+  )
+  |> pickle.parse("let test value;", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
+  |> because("the terminator could not be found")
+
+  pickle.until1(
+    pickle.string("test", pickle.apppend_to_string),
+    pickle.string("t", pickle.drop),
+  )
+  |> pickle.parse("test", "", _)
+  |> should.be_error()
+  |> should.equal(Until1Error(ParserPosition(0, 0)))
+  |> because("the terminator succeeded before the given parser could succeed")
+
+  pickle.until1(
+    pickle.string(";", pickle.apppend_to_string),
+    pickle.eol(pickle.drop),
+  )
+  |> pickle.parse(";;;;;;,\n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String(";"), ",", ParserPosition(0, 6)))
+  |> because(
+    "the parser encountered an unexpected token before the terminator succeeded",
+  )
+
+  pickle.until1(pickle.any(pickle.apppend_to_string), pickle.eof())
+  |> pickle.parse("let test = \"value\";", "", _)
+  |> should.be_ok()
+  |> should.equal("let test = \"value\";")
+  |> because("the terminator did succeed")
+
+  pickle.until1(
+    pickle.any(pickle.apppend_to_string),
+    pickle.string("EQUALS", pickle.drop),
+  )
+  |> pickle.parse("var test EQUALS something", "", _)
+  |> should.be_ok()
+  |> should.equal("var test ")
+  |> because("the terminator did succeed")
+
+  pickle.many(
+    "",
+    pickle.until1(
       pickle.any(pickle.apppend_to_string),
       pickle.string("=", pickle.drop),
     )
@@ -1004,6 +1065,40 @@ pub fn skip_until_test() {
   |> because("the terminator did succeed")
 
   pickle.skip_until(pickle.string("EQUALS", pickle.drop))
+  |> pickle.then(pickle.until(
+    pickle.any(pickle.apppend_to_string),
+    pickle.string(" ", pickle.drop),
+  ))
+  |> pickle.parse("var test EQUALS something", "", _)
+  |> should.be_ok()
+  |> should.equal("EQUALS")
+  |> because("the terminator did succeed")
+}
+
+pub fn skip_until1_test() {
+  pickle.skip_until1(pickle.string("=", pickle.drop))
+  |> pickle.parse("let test value;", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
+  |> because("the terminator did not succeed")
+
+  pickle.skip_until1(pickle.eof())
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(Until1Error(ParserPosition(0, 0)))
+  |> because("the terminator succeeded before the given parser could succeed")
+
+  pickle.skip_until1(pickle.string("=", pickle.drop))
+  |> pickle.then(pickle.until(
+    pickle.any(pickle.apppend_to_string),
+    pickle.string(";", pickle.drop),
+  ))
+  |> pickle.parse("let test = \"value\";", "", _)
+  |> should.be_ok()
+  |> should.equal("= \"value\"")
+  |> because("the terminator did succeed")
+
+  pickle.skip_until1(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
     pickle.any(pickle.apppend_to_string),
     pickle.string(" ", pickle.drop),
