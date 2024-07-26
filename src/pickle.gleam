@@ -318,37 +318,25 @@ pub fn float(mapper: fn(a, Float) -> a) -> Parser(a, a, b) {
   }
 }
 
-/// Applies the given parser zero to `n` times until it succeeds.
-/// The mapper decides how to apply the parsed string to the value
-/// of the parent parser.
+/// Applies the given parser zero to `n` times until the given terminator
+/// succeeds.
+/// 
+/// It fails if the given parser fails or the given terminator doesn't
+/// succeed before no further tokens are left to parse.
 pub fn until(
-  terminator: Parser(String, String, b),
-  mapper: fn(a, String) -> a,
-) -> Parser(a, a, b) {
-  fn(parsed) {
-    let Parsed(tokens, pos, value) = parsed
-
-    case
-      Parsed(tokens, pos, "")
-      |> Ok()
-      |> do_until(terminator)
-    {
-      Error(failure) -> Error(failure)
-      Ok(until_parsed) ->
-        Parsed(
-          until_parsed.tokens,
-          until_parsed.pos,
-          mapper(value, until_parsed.value),
-        )
-        |> Ok()
-    }
-  }
+  parser: Parser(a, a, c),
+  terminator: Parser(a, b, c),
+) -> Parser(a, a, c) {
+  fn(parsed) { Ok(parsed) |> do_until(parser, terminator) }
 }
 
-/// Applies the given parser zero to `n` times until it succeeds and
-/// drops the parsed tokens.
-pub fn skip_until(terminator: Parser(String, String, b)) -> Parser(a, a, b) {
-  until(terminator, drop)
+/// Applies the given parser zero to `n` times until the given terminator
+/// succeeds and drops the parsed tokens.
+/// 
+/// It fails if the given terminator doesn't succeed before no further
+/// tokens are left to parse.
+pub fn skip_until(terminator: Parser(a, d, c)) -> Parser(a, a, c) {
+  until(any(drop), terminator)
 }
 
 /// Parses whitespace zero to `n` times until encountering a non-whitespace
@@ -651,28 +639,25 @@ fn do_float(
 }
 
 fn do_until(
-  prev: Result(Parsed(String), ParserFailure(a)),
-  terminator: Parser(String, String, a),
-) -> Result(Parsed(String), ParserFailure(a)) {
+  prev: Result(Parsed(a), ParserFailure(c)),
+  parser: Parser(a, a, c),
+  terminator: Parser(a, d, c),
+) -> Result(Parsed(a), ParserFailure(c)) {
   case prev {
     Error(failure) -> Error(failure)
-    Ok(parsed) -> {
+    Ok(parsed) ->
       case terminator(parsed) {
+        Ok(_) -> prev
         Error(failure) ->
           case parsed.tokens {
             [] -> Error(failure)
-            [token, ..rest] ->
-              Parsed(
-                rest,
-                increment_parser_position(parsed.pos, token),
-                parsed.value <> token,
-              )
-              |> Ok()
-              |> do_until(terminator)
+            _ ->
+              case parser(parsed) {
+                Error(failure) -> Error(failure)
+                until_parsed -> do_until(until_parsed, parser, terminator)
+              }
           }
-        Ok(_) -> Parsed(parsed.tokens, parsed.pos, parsed.value) |> Ok()
       }
-    }
   }
 }
 

@@ -937,34 +937,45 @@ pub fn float_test() {
 
 pub fn until_test() {
   pickle.until(
-    pickle.string("=", pickle.apppend_to_string),
-    pickle.apppend_to_string,
+    pickle.any(pickle.apppend_to_string),
+    pickle.string("=", pickle.drop),
   )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
   |> because("the terminator could not be found")
 
-  pickle.until(pickle.eof(), pickle.apppend_to_string)
+  pickle.until(
+    pickle.string(";", pickle.apppend_to_string),
+    pickle.eol(pickle.drop),
+  )
+  |> pickle.parse(";;;;;;,\n", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String(";"), ",", ParserPosition(0, 6)))
+  |> because(
+    "the parser encountered an unexpected token before the terminator succeeded",
+  )
+
+  pickle.until(pickle.any(pickle.apppend_to_string), pickle.eof())
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
-  |> because("the terminator could be found")
+  |> because("the terminator did not succeed")
 
   pickle.until(
-    pickle.string("EQUALS", pickle.apppend_to_string),
-    pickle.apppend_to_string,
+    pickle.any(pickle.apppend_to_string),
+    pickle.string("EQUALS", pickle.drop),
   )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("var test ")
-  |> because("the terminator could be found")
+  |> because("the terminator did succeed")
 
   pickle.many(
     "",
     pickle.until(
-      pickle.string("=", pickle.apppend_to_string),
-      pickle.apppend_to_string,
+      pickle.any(pickle.apppend_to_string),
+      pickle.string("=", pickle.drop),
     )
       |> pickle.then(pickle.string("=", pickle.drop)),
     pickle.prepend_to_list,
@@ -972,7 +983,7 @@ pub fn until_test() {
   |> pickle.parse("let test = \"value\";\nlet test2 = \"value2\";", [], _)
   |> should.be_ok()
   |> should.equal([" \"value\";\nlet test2 ", "let test "])
-  |> because("the terminator could be found two times")
+  |> because("the terminator did succeed twice")
 }
 
 pub fn skip_until_test() {
@@ -980,27 +991,27 @@ pub fn skip_until_test() {
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(String("="), ParserPosition(0, 15)))
-  |> because("the terminator could not be found")
+  |> because("the terminator did not succeed")
 
   pickle.skip_until(pickle.string("=", pickle.drop))
   |> pickle.then(pickle.until(
-    pickle.string(";", pickle.apppend_to_string),
-    pickle.apppend_to_string,
+    pickle.any(pickle.apppend_to_string),
+    pickle.string(";", pickle.drop),
   ))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("= \"value\"")
-  |> because("the terminator could be found")
+  |> because("the terminator did succeed")
 
   pickle.skip_until(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
-    pickle.string(" ", pickle.apppend_to_string),
-    pickle.apppend_to_string,
+    pickle.any(pickle.apppend_to_string),
+    pickle.string(" ", pickle.drop),
   ))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
   |> should.equal("EQUALS")
-  |> because("the terminator could be found")
+  |> because("the terminator did succeed")
 }
 
 pub fn whitespace_test() {
