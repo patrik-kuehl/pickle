@@ -5,11 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2024-07-26
 
 ## Added
 
 -   Added `pickle/any` to parse a single token of any kind.
+-   Added `pickle/skip_until1` to skip one to `n` tokens until the terminator succeeds.
+-   Added `pickle/until1` to apply a given parser one to `n` times until the terminator succeeds.
 
 ## [0.3.0] - 2024-07-20
 
@@ -48,15 +50,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/hexadecimal_integer` to parse tokens as a hexadecimal integer.
 -   Added `pickle/decimal_integer` to parse tokens as a decimal integer.
 -   Added `pickle/binary_integer` to parse tokens as a binary integer.
--   Added `pickle/skip_until` to skip zero to `n` tokens until reaching a specific terminator.
--   Added `pickle/until` to parse zero to `n` tokens until reaching a specific terminator.
+-   Added `pickle/skip_until` to skip zero to `n` tokens until the terminator succeeds.
+-   Added `pickle/until` to apply a given parser zero to `n` times until the terminator succeeds.
 -   Added `pickle/many` to parse tokens zero to `n` times until the given parser fails.
 -   Added `pickle/optional` to ignore and backtrack the parser in case the given parser fails.
 -   Added `pickle/string` to parse a specific string.
 -   Added `pickle/then` to chain parsers.
 -   Added `pickle/parse` to parse input via a given parser.
 
-[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/patrik-kuehl/pickle/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/patrik-kuehl/pickle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patrik-kuehl/pickle/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/patrik-kuehl/pickle/releases/tag/v0.1.0
