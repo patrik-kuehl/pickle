@@ -40,8 +40,8 @@ fn parse_invoices() -> Parser(List(Invoice), List(Invoice), Nil) {
 }
 
 fn skip_header() -> Parser(List(Invoice), List(Invoice), Nil) {
-  pickle.skip_until(pickle.string("\n", pickle.drop))
-  |> pickle.then(pickle.string("\n", pickle.drop))
+  pickle.skip_until(pickle.eol(pickle.drop))
+  |> pickle.then(pickle.eol(pickle.drop))
 }
 
 fn parse_invoice() -> Parser(Invoice, Invoice, Nil) {
@@ -57,13 +57,15 @@ fn parse_invoice_number() -> Parser(Invoice, Invoice, Nil) {
 
 fn parse_invoice_recipient() -> Parser(Invoice, Invoice, Nil) {
   pickle.until(
-    pickle.string(",", pickle.apppend_to_string),
-    fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
+    pickle.any(fn(invoice, letter) {
+      Invoice(..invoice, recipient: invoice.recipient <> letter)
+    }),
+    pickle.string(",", pickle.drop),
   )
   |> pickle.then(pickle.string(",", pickle.drop))
 }
 
 fn parse_invoice_total() -> Parser(Invoice, Invoice, Nil) {
   pickle.float(fn(invoice, total) { Invoice(..invoice, total: total) })
-  |> pickle.then(pickle.string("\n", pickle.drop))
+  |> pickle.then(pickle.eol(pickle.drop))
 }

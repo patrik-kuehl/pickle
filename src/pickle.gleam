@@ -23,8 +23,9 @@ pub type Parser(a, b, c) =
 /// The type to represent a kind of token that was expected at a
 /// specific position of the input that couldn't be found.
 pub type ExpectedToken {
-  Eof
   Eol
+  Eof
+  NonEof
   Float
   Integer
   OctalDigit
@@ -162,6 +163,12 @@ pub fn string(expected: String, mapper: fn(a, String) -> a) -> Parser(a, a, b) {
   }
 }
 
+/// Parses a single token of any kind and fails if there is no further input
+/// left to parse.
+pub fn any(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
+  take_if(fn(_) { True }, NonEof, mapper)
+}
+
 /// Parses an ASCII letter.
 pub fn ascii_letter(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
   take_if(is_ascii_letter, AsciiLetter, mapper)
@@ -193,12 +200,11 @@ pub fn optional(parser: Parser(a, a, b)) -> Parser(a, a, b) {
 /// apply the parsed value to the value of the parent parser.
 pub fn many(
   initial_value: a,
-  parser: Parser(a, a, b),
-  acc: fn(c, a) -> c,
-) -> Parser(c, c, b) {
+  parser: Parser(a, b, c),
+  acc: fn(d, b) -> d,
+) -> Parser(d, d, c) {
   fn(parsed) {
-    parsed
-    |> Ok()
+    Ok(parsed)
     |> do_many(initial_value, parser, acc, None)
   }
 }
@@ -210,12 +216,11 @@ pub fn many(
 /// The given parser must succeed at least once.
 pub fn many1(
   initial_value: a,
-  parser: Parser(a, a, b),
-  acc: fn(c, a) -> c,
-) -> Parser(c, c, b) {
+  parser: Parser(a, b, c),
+  acc: fn(d, b) -> d,
+) -> Parser(d, d, c) {
   fn(parsed) {
-    parsed
-    |> Ok()
+    Ok(parsed)
     |> do_many(initial_value, parser, acc, Some(1))
   }
 }
@@ -313,37 +318,25 @@ pub fn float(mapper: fn(a, Float) -> a) -> Parser(a, a, b) {
   }
 }
 
-/// Applies the given parser zero to `n` times until it succeeds.
-/// The mapper decides how to apply the parsed string to the value
-/// of the parent parser.
+/// Applies the given parser zero to `n` times until the given terminator
+/// succeeds.
+/// 
+/// It fails if the given parser fails or the given terminator doesn't
+/// succeed before no further tokens are left to parse.
 pub fn until(
-  terminator: Parser(String, String, b),
-  mapper: fn(a, String) -> a,
-) -> Parser(a, a, b) {
-  fn(parsed) {
-    let Parsed(tokens, pos, value) = parsed
-
-    case
-      Parsed(tokens, pos, "")
-      |> Ok()
-      |> do_until(terminator)
-    {
-      Error(failure) -> Error(failure)
-      Ok(until_parsed) ->
-        Parsed(
-          until_parsed.tokens,
-          until_parsed.pos,
-          mapper(value, until_parsed.value),
-        )
-        |> Ok()
-    }
-  }
+  parser: Parser(a, a, c),
+  terminator: Parser(a, b, c),
+) -> Parser(a, a, c) {
+  fn(parsed) { Ok(parsed) |> do_until(parser, terminator) }
 }
 
-/// Applies the given parser zero to `n` times until it succeeds and
-/// drops the parsed tokens.
-pub fn skip_until(terminator: Parser(String, String, b)) -> Parser(a, a, b) {
-  until(terminator, drop)
+/// Applies the given parser zero to `n` times until the given terminator
+/// succeeds and drops the parsed tokens.
+/// 
+/// It fails if the given terminator doesn't succeed before no further
+/// tokens are left to parse.
+pub fn skip_until(terminator: Parser(a, d, c)) -> Parser(a, a, c) {
+  until(any(drop), terminator)
 }
 
 /// Parses whitespace zero to `n` times until encountering a non-whitespace
@@ -430,26 +423,6 @@ pub fn lookahead(parser: Parser(a, b, c)) -> Parser(a, a, c) {
   fn(parsed) { do_lookahead(parsed, parsed, parser) }
 }
 
-const binary_digit_pattern = "^[01]$"
-
-const decimal_digit_pattern = "^[0-9]$"
-
-const hexadecimal_digit_pattern = "^[0-9a-fA-F]$"
-
-const octal_digit_pattern = "^[0-7]$"
-
-const decimal_digit_or_point_pattern = "^[0-9.]$"
-
-const whitespace_pattern = "^\\s$"
-
-const eol_pattern = "^\n|\r\n$"
-
-const ascii_letter_pattern = "^[a-zA-Z]$"
-
-const lowercase_ascii_letter_pattern = "^[a-z]$"
-
-const uppercase_ascii_letter_pattern = "^[A-Z]$"
-
 fn take_if(
   predicate: fn(String) -> Bool,
   expected_token: ExpectedToken,
@@ -515,8 +488,8 @@ fn do_string(
 fn do_many(
   prev: Result(Parsed(a), ParserFailure(b)),
   initial_value: c,
-  parser: Parser(c, c, b),
-  acc: fn(a, c) -> a,
+  parser: Parser(c, d, b),
+  acc: fn(a, d) -> a,
   attempt: Option(Int),
 ) -> Result(Parsed(a), ParserFailure(b)) {
   case prev {
@@ -666,28 +639,25 @@ fn do_float(
 }
 
 fn do_until(
-  prev: Result(Parsed(String), ParserFailure(a)),
-  terminator: Parser(String, String, a),
-) -> Result(Parsed(String), ParserFailure(a)) {
+  prev: Result(Parsed(a), ParserFailure(c)),
+  parser: Parser(a, a, c),
+  terminator: Parser(a, d, c),
+) -> Result(Parsed(a), ParserFailure(c)) {
   case prev {
     Error(failure) -> Error(failure)
-    Ok(parsed) -> {
+    Ok(parsed) ->
       case terminator(parsed) {
+        Ok(_) -> prev
         Error(failure) ->
           case parsed.tokens {
             [] -> Error(failure)
-            [token, ..rest] ->
-              Parsed(
-                rest,
-                increment_parser_position(parsed.pos, token),
-                parsed.value <> token,
-              )
-              |> Ok()
-              |> do_until(terminator)
+            _ ->
+              case parser(parsed) {
+                Error(failure) -> Error(failure)
+                until_parsed -> do_until(until_parsed, parser, terminator)
+              }
           }
-        Ok(_) -> Parsed(parsed.tokens, parsed.pos, parsed.value) |> Ok()
       }
-    }
   }
 }
 
@@ -846,48 +816,48 @@ fn increment_parser_position(
 }
 
 fn matches_pattern(token: String, pattern: String) -> Bool {
-  case regex.from_string(pattern) {
+  case regex.from_string("^" <> pattern <> "$") {
     Error(_) -> False
     Ok(pattern) -> regex.check(pattern, token)
   }
 }
 
 fn is_binary_digit(token: String) -> Bool {
-  matches_pattern(token, binary_digit_pattern)
+  matches_pattern(token, "[01]")
 }
 
 fn is_decimal_digit(token: String) -> Bool {
-  matches_pattern(token, decimal_digit_pattern)
+  matches_pattern(token, "[0-9]")
 }
 
 fn is_hexadecimal_digit(token: String) -> Bool {
-  matches_pattern(token, hexadecimal_digit_pattern)
+  matches_pattern(token, "[0-9a-fA-F]")
 }
 
 fn is_octal_digit(token: String) -> Bool {
-  matches_pattern(token, octal_digit_pattern)
+  matches_pattern(token, "[0-7]")
 }
 
 fn is_decimal_digit_or_point(token: String) -> Bool {
-  matches_pattern(token, decimal_digit_or_point_pattern)
+  matches_pattern(token, "[0-9.]")
 }
 
 fn is_whitespace(token: String) -> Bool {
-  matches_pattern(token, whitespace_pattern)
+  matches_pattern(token, "\\s")
 }
 
 fn is_eol(token: String) -> Bool {
-  matches_pattern(token, eol_pattern)
+  matches_pattern(token, "\n|\r\n")
 }
 
 fn is_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, ascii_letter_pattern)
+  matches_pattern(token, "[a-zA-Z]")
 }
 
 fn is_lowercase_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, lowercase_ascii_letter_pattern)
+  matches_pattern(token, "[a-z]")
 }
 
 fn is_uppercase_ascii_letter(token: String) -> Bool {
-  matches_pattern(token, uppercase_ascii_letter_pattern)
+  matches_pattern(token, "[A-Z]")
 }
