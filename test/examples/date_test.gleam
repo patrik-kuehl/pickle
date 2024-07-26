@@ -133,9 +133,7 @@ fn parse_date_second() -> Parser(Date, Date, InvalidDateError) {
   pickle.integer(fn(date, second) { Date(..date, second: second) })
   |> pickle.then(pickle.guard(has_valid_second, InvalidSecond))
   |> pickle.then(pickle.optional(pickle.string("Z", pickle.drop)))
-  |> pickle.then(
-    pickle.one_of([pickle.string("\n", pickle.drop), pickle.eof()]),
-  )
+  |> pickle.then(pickle.one_of([pickle.eol(pickle.drop), pickle.eof()]))
 }
 
 fn has_valid_year(date: Date) -> Bool {
