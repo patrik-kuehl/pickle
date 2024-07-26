@@ -4,8 +4,8 @@ import gleeunit/should
 import pickle.{
   type ParserPosition, AsciiLetter, BinaryDigit, CustomError, DecimalDigit,
   DecimalDigitOrPoint, Eof, Eol, GuardError, HexadecimalDigit,
-  LowercaseAsciiLetter, NotError, OctalDigit, OneOfError, ParserPosition, String,
-  UnexpectedEof, UnexpectedToken, UppercaseAsciiLetter, Whitespace,
+  LowercaseAsciiLetter, NonEof, NotError, OctalDigit, OneOfError, ParserPosition,
+  String, UnexpectedEof, UnexpectedToken, UppercaseAsciiLetter, Whitespace,
 }
 import prelude.{because}
 
@@ -107,6 +107,28 @@ pub fn string_test() {
   |> should.be_ok()
   |> should.equal("input")
   |> because("the parser did not fail")
+}
+
+pub fn any_test() {
+  pickle.string("test", pickle.apppend_to_string)
+  |> pickle.then(pickle.any(pickle.apppend_to_string))
+  |> pickle.parse("tesd", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("test"), "tesd", ParserPosition(0, 3)))
+  |> because("a prior parser failed")
+
+  pickle.any(pickle.apppend_to_string)
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(NonEof, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.any(pickle.apppend_to_string)
+  |> pickle.then(pickle.any(pickle.apppend_to_string))
+  |> pickle.parse("ab", "", _)
+  |> should.be_ok()
+  |> should.equal("ab")
+  |> because("two tokens could be consumed")
 }
 
 pub fn ascii_letter_test() {

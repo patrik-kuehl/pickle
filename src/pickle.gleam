@@ -23,8 +23,9 @@ pub type Parser(a, b, c) =
 /// The type to represent a kind of token that was expected at a
 /// specific position of the input that couldn't be found.
 pub type ExpectedToken {
-  Eof
   Eol
+  Eof
+  NonEof
   Float
   Integer
   OctalDigit
@@ -162,6 +163,12 @@ pub fn string(expected: String, mapper: fn(a, String) -> a) -> Parser(a, a, b) {
   }
 }
 
+/// Parses a single token of any kind and fails if there is no further input
+/// left to parse.
+pub fn any(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
+  take_if(fn(_) { True }, NonEof, mapper)
+}
+
 /// Parses an ASCII letter.
 pub fn ascii_letter(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
   take_if(is_ascii_letter, AsciiLetter, mapper)
@@ -197,8 +204,7 @@ pub fn many(
   acc: fn(d, b) -> d,
 ) -> Parser(d, d, c) {
   fn(parsed) {
-    parsed
-    |> Ok()
+    Ok(parsed)
     |> do_many(initial_value, parser, acc, None)
   }
 }
@@ -214,8 +220,7 @@ pub fn many1(
   acc: fn(d, b) -> d,
 ) -> Parser(d, d, c) {
   fn(parsed) {
-    parsed
-    |> Ok()
+    Ok(parsed)
     |> do_many(initial_value, parser, acc, Some(1))
   }
 }
