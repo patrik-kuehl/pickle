@@ -26,14 +26,14 @@ type Invoice {
   Invoice(number: Int, recipient: String, total: Float)
 }
 
-fn create_blank_invoice() -> Invoice {
+fn new_invoice() -> Invoice {
   Invoice(0, "", 0.0)
 }
 
 fn parse_invoices() -> Parser(List(Invoice), List(Invoice), Nil) {
   skip_header()
   |> pickle.then(pickle.many(
-    create_blank_invoice(),
+    new_invoice(),
     parse_invoice(),
     pickle.prepend_to_list,
   ))
@@ -57,10 +57,10 @@ fn parse_invoice_number() -> Parser(Invoice, Invoice, Nil) {
 
 fn parse_invoice_recipient() -> Parser(Invoice, Invoice, Nil) {
   pickle.until(
-    pickle.any(fn(invoice, letter) {
-      Invoice(..invoice, recipient: invoice.recipient <> letter)
-    }),
+    "",
+    pickle.any(pickle.apppend_to_string),
     pickle.string(",", pickle.drop),
+    fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
   )
   |> pickle.then(pickle.string(",", pickle.drop))
 }
