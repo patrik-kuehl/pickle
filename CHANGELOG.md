@@ -5,9 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2024-07-28
+
+### Added
+
+-   Added `pickle/do` to apply the initial value to a given parser.
+
 ## [0.4.0] - 2024-07-26
 
-## Added
+### Added
 
 -   Added `pickle/any` to parse a single token of any kind.
 -   Added `pickle/skip_until1` to skip one to `n` tokens until the terminator succeeds.
@@ -58,7 +64,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/then` to chain parsers.
 -   Added `pickle/parse` to parse input via a given parser.
 
-[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/patrik-kuehl/pickle/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/patrik-kuehl/pickle/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/patrik-kuehl/pickle/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/patrik-kuehl/pickle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patrik-kuehl/pickle/compare/v0.1.0...v0.2.0
