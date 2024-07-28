@@ -1,3 +1,4 @@
+import gleam/int
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -12,6 +13,71 @@ import prelude.{because}
 
 pub fn main() {
   gleeunit.main()
+}
+
+pub fn do_test() {
+  pickle.string("(", pickle.apppend_to_string)
+  |> pickle.then(
+    pickle.do(
+      Point(0, 0),
+      pickle.integer(fn(point, x) { Point(..point, x: x) })
+        |> pickle.then(pickle.string("|", pickle.drop))
+        |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
+        |> pickle.then(
+          pickle.map(fn(point: Point(Int)) {
+            int.to_string(point.x) <> ";" <> int.to_string(point.y)
+          }),
+        ),
+      fn(value, point_string) { value <> point_string },
+    ),
+  )
+  |> pickle.then(pickle.string(")", pickle.apppend_to_string))
+  |> pickle.parse("[2|-5]", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("("), "[", ParserPosition(0, 0)))
+  |> because("a prior parser failed")
+
+  pickle.string("(", pickle.apppend_to_string)
+  |> pickle.then(
+    pickle.do(
+      Point(0, 0),
+      pickle.integer(fn(point, x) { Point(..point, x: x) })
+        |> pickle.then(pickle.string(",", pickle.drop))
+        |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
+        |> pickle.then(
+          pickle.map(fn(point: Point(Int)) {
+            int.to_string(point.x) <> ";" <> int.to_string(point.y)
+          }),
+        ),
+      fn(value, point_string) { value <> point_string },
+    ),
+  )
+  |> pickle.then(pickle.string(")", pickle.apppend_to_string))
+  |> pickle.parse("(510)", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String(","), ")", ParserPosition(0, 4)))
+  |> because("the parser did fail")
+
+  pickle.string("[", pickle.apppend_to_string)
+  |> pickle.then(
+    pickle.do(
+      Point(0, 0),
+      pickle.integer(fn(point, x) { Point(..point, x: x) })
+        |> pickle.then(pickle.string(",", pickle.drop))
+        |> pickle.then(pickle.integer(fn(point, y) { Point(..point, y: y) }))
+        |> pickle.then(
+          pickle.map(fn(point: Point(Int)) {
+            int.to_string(point.x) <> ";" <> int.to_string(point.y)
+          }),
+        ),
+      fn(value, point_string) { value <> point_string },
+    ),
+  )
+  |> pickle.then(pickle.string("]", pickle.apppend_to_string))
+  |> pickle.parse("[5,10]", "", _)
+  |> should.be_ok()
+  |> should.equal("[5;10]")
+  |> because("the parser did not fail")
 }
 
 pub fn guard_test() {
@@ -938,8 +1004,10 @@ pub fn float_test() {
 
 pub fn until_test() {
   pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string("=", pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
@@ -947,8 +1015,10 @@ pub fn until_test() {
   |> because("the terminator could not be found")
 
   pickle.until(
+    "",
     pickle.string(";", pickle.apppend_to_string),
     pickle.eol(pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse(";;;;;;,\n", "", _)
   |> should.be_error()
@@ -957,15 +1027,22 @@ pub fn until_test() {
     "the parser encountered an unexpected token before the terminator succeeded",
   )
 
-  pickle.until(pickle.any(pickle.apppend_to_string), pickle.eof())
+  pickle.until(
+    "",
+    pickle.any(pickle.apppend_to_string),
+    pickle.eof(),
+    pickle.apppend_to_string,
+  )
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
   |> because("the terminator did succeed")
 
   pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string("EQUALS", pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -975,8 +1052,10 @@ pub fn until_test() {
   pickle.many(
     "",
     pickle.until(
+      "",
       pickle.any(pickle.apppend_to_string),
       pickle.string("=", pickle.drop),
+      pickle.apppend_to_string,
     )
       |> pickle.then(pickle.string("=", pickle.drop)),
     pickle.prepend_to_list,
@@ -989,8 +1068,10 @@ pub fn until_test() {
 
 pub fn until1_test() {
   pickle.until1(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string("=", pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
@@ -998,8 +1079,10 @@ pub fn until1_test() {
   |> because("the terminator could not be found")
 
   pickle.until1(
+    "",
     pickle.string("test", pickle.apppend_to_string),
     pickle.string("t", pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse("test", "", _)
   |> should.be_error()
@@ -1007,8 +1090,10 @@ pub fn until1_test() {
   |> because("the terminator succeeded before the given parser could succeed")
 
   pickle.until1(
+    "",
     pickle.string(";", pickle.apppend_to_string),
     pickle.eol(pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse(";;;;;;,\n", "", _)
   |> should.be_error()
@@ -1017,15 +1102,22 @@ pub fn until1_test() {
     "the parser encountered an unexpected token before the terminator succeeded",
   )
 
-  pickle.until1(pickle.any(pickle.apppend_to_string), pickle.eof())
+  pickle.until1(
+    "",
+    pickle.any(pickle.apppend_to_string),
+    pickle.eof(),
+    pickle.apppend_to_string,
+  )
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
   |> because("the terminator did succeed")
 
   pickle.until1(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string("EQUALS", pickle.drop),
+    pickle.apppend_to_string,
   )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1035,8 +1127,10 @@ pub fn until1_test() {
   pickle.many(
     "",
     pickle.until1(
+      "",
       pickle.any(pickle.apppend_to_string),
       pickle.string("=", pickle.drop),
+      pickle.apppend_to_string,
     )
       |> pickle.then(pickle.string("=", pickle.drop)),
     pickle.prepend_to_list,
@@ -1056,8 +1150,10 @@ pub fn skip_until_test() {
 
   pickle.skip_until(pickle.string("=", pickle.drop))
   |> pickle.then(pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string(";", pickle.drop),
+    pickle.apppend_to_string,
   ))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
@@ -1066,8 +1162,10 @@ pub fn skip_until_test() {
 
   pickle.skip_until(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string(" ", pickle.drop),
+    pickle.apppend_to_string,
   ))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1090,8 +1188,10 @@ pub fn skip_until1_test() {
 
   pickle.skip_until1(pickle.string("=", pickle.drop))
   |> pickle.then(pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string(";", pickle.drop),
+    pickle.apppend_to_string,
   ))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
@@ -1100,8 +1200,10 @@ pub fn skip_until1_test() {
 
   pickle.skip_until1(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
+    "",
     pickle.any(pickle.apppend_to_string),
     pickle.string(" ", pickle.drop),
+    pickle.apppend_to_string,
   ))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
