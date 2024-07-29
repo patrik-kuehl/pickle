@@ -27,7 +27,6 @@ pub type ExpectedToken {
   Eof
   NonEof
   Float
-  Integer
   OctalDigit
   BinaryDigit
   DecimalDigit
@@ -254,7 +253,7 @@ pub fn octal_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_integer("o", "O", 8, OctalDigit, is_octal_digit, mapper)
 }
 
-/// Parses an integer of different numeric formats (binary, decimal, hexadecimal
+/// Parses an integer of different numeral systems (binary, decimal, hexadecimal
 /// and octal).
 pub fn integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   fn(parsed) {
@@ -564,84 +563,41 @@ fn do_integer(
   mapper: fn(a, Int) -> a,
 ) -> Parser(a, a, b) {
   fn(parsed) {
-    let Parsed(tokens, pos, _) = parsed
+    let Parsed(tokens, pos, value) = parsed
 
-    case tokens {
-      [] -> UnexpectedEof(expected_token, pos) |> Error()
-      ["0", token, ..rest] ->
-        case
-          token == format_prefix_lowercase || token == format_prefix_uppercase
-        {
-          False ->
-            Parsed([token, ..rest], increment_parser_position(pos, "0"), "0")
-            |> Ok()
-            |> collect_integer_digits(digit_predicate)
-            |> parse_string_as_integer(parsed, base, mapper)
-
-          True ->
-            case rest {
-              [] ->
-                UnexpectedEof(
-                  expected_token,
-                  increment_parser_position(pos, "0" <> token),
-                )
-                |> Error()
-              [digit, ..rest] ->
-                case digit_predicate(digit) {
-                  False ->
-                    UnexpectedToken(
-                      expected_token,
-                      digit,
-                      increment_parser_position(pos, "0" <> token),
-                    )
-                    |> Error()
-                  True ->
-                    Parsed(
-                      rest,
-                      increment_parser_position(pos, "0" <> token <> digit),
-                      digit,
-                    )
-                    |> Ok()
-                    |> collect_integer_digits(digit_predicate)
-                    |> parse_string_as_integer(parsed, base, mapper)
-                }
-            }
-        }
-      [sign, ..rest] if sign == "+" || sign == "-" ->
-        case rest {
-          [] ->
-            UnexpectedEof(expected_token, increment_parser_position(pos, sign))
-            |> Error()
-          [token, ..rest] ->
-            case digit_predicate(token) {
-              False ->
-                UnexpectedToken(
-                  expected_token,
-                  token,
-                  increment_parser_position(pos, sign),
-                )
-                |> Error()
-              True ->
-                Parsed(
-                  rest,
-                  increment_parser_position(pos, sign <> token),
-                  sign <> token,
-                )
-                |> Ok()
-                |> collect_integer_digits(digit_predicate)
-                |> parse_string_as_integer(parsed, base, mapper)
-            }
-        }
-      [token, ..rest] ->
-        case digit_predicate(token) {
-          False -> UnexpectedToken(expected_token, token, pos) |> Error()
-          True ->
-            Parsed(rest, increment_parser_position(pos, token), token)
-            |> Ok()
-            |> collect_integer_digits(digit_predicate)
-            |> parse_string_as_integer(parsed, base, mapper)
-        }
+    let #(advanced_parsed, sign) = case tokens {
+      ["0", format_prefix, ..rest]
+        if format_prefix == format_prefix_lowercase
+        || format_prefix == format_prefix_uppercase
+      -> #(
+        Parsed(rest, increment_parser_position(pos, "0" <> format_prefix), ""),
+        "",
+      )
+      ["+", ..rest] -> #(
+        Parsed(rest, increment_parser_position(pos, "+"), ""),
+        "",
+      )
+      ["-", ..rest] -> #(
+        Parsed(rest, increment_parser_position(pos, "-"), ""),
+        "-",
+      )
+      _ -> #(Parsed(tokens, pos, ""), "")
     }
+
+    {
+      many1(
+        "",
+        take_if(digit_predicate, expected_token, string.append),
+        string.append,
+      )
+      |> then(
+        map(fn(string_integer) {
+          let assert Ok(integer) = int.base_parse(sign <> string_integer, base)
+
+          mapper(value, integer)
+        }),
+      )
+    }(advanced_parsed)
   }
 }
 
@@ -763,38 +719,6 @@ fn do_lookahead(
   }
 }
 
-fn collect_integer_digits(
-  prev: Result(Parsed(String), ParserFailure(a)),
-  digit_predicate: fn(String) -> Bool,
-) -> Result(Parsed(String), ParserFailure(a)) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(parsed) ->
-      case parsed.tokens {
-        [] -> prev
-        [token, ..rest] ->
-          case digit_predicate(token) {
-            False -> prev
-            True ->
-              Parsed(
-                rest,
-                increment_parser_position(parsed.pos, token),
-                parsed.value <> token,
-              )
-              |> Ok()
-              |> collect_integer_digits(digit_predicate)
-          }
-      }
-  }
-}
-
-fn remove_leading_plus_sign_from_string(value: String) -> String {
-  case value {
-    "+" <> rest -> rest
-    _ -> value
-  }
-}
-
 fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
   case float_as_string {
     "." <> rest -> "0." <> rest
@@ -804,33 +728,6 @@ fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
         float -> "-" <> float
       }
     float -> float
-  }
-}
-
-fn parse_string_as_integer(
-  prev: Result(Parsed(String), ParserFailure(a)),
-  entrypoint_parsed: Parsed(b),
-  base: Int,
-  mapper: fn(b, Int) -> b,
-) -> Result(Parsed(b), ParserFailure(a)) {
-  case prev {
-    Error(failure) -> Error(failure)
-    Ok(integer_parsed) ->
-      case
-        remove_leading_plus_sign_from_string(integer_parsed.value)
-        |> int.base_parse(base)
-      {
-        Error(_) ->
-          UnexpectedToken(Integer, integer_parsed.value, integer_parsed.pos)
-          |> Error()
-        Ok(integer) ->
-          Parsed(
-            integer_parsed.tokens,
-            integer_parsed.pos,
-            mapper(entrypoint_parsed.value, integer),
-          )
-          |> Ok()
-      }
   }
 }
 
