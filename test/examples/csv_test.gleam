@@ -1,3 +1,5 @@
+import gleam/list
+import gleam/string
 import gleeunit/should
 import pickle.{type Parser}
 import simplifile
@@ -32,11 +34,7 @@ fn new_invoice() -> Invoice {
 
 fn parse_invoices() -> Parser(List(Invoice), List(Invoice), Nil) {
   skip_header()
-  |> pickle.then(pickle.many(
-    new_invoice(),
-    parse_invoice(),
-    pickle.prepend_to_list,
-  ))
+  |> pickle.then(pickle.many(new_invoice(), parse_invoice(), list.prepend))
 }
 
 fn skip_header() -> Parser(List(Invoice), List(Invoice), Nil) {
@@ -58,7 +56,7 @@ fn parse_invoice_number() -> Parser(Invoice, Invoice, Nil) {
 fn parse_invoice_recipient() -> Parser(Invoice, Invoice, Nil) {
   pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string(",", pickle.drop),
     fn(invoice, recipient) { Invoice(..invoice, recipient: recipient) },
   )

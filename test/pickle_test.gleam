@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/list
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -16,7 +17,7 @@ pub fn main() {
 }
 
 pub fn do_test() {
-  pickle.string("(", pickle.apppend_to_string)
+  pickle.string("(", string.append)
   |> pickle.then(
     pickle.do(
       Point(0, 0),
@@ -31,13 +32,13 @@ pub fn do_test() {
       fn(value, point_string) { value <> point_string },
     ),
   )
-  |> pickle.then(pickle.string(")", pickle.apppend_to_string))
+  |> pickle.then(pickle.string(")", string.append))
   |> pickle.parse("[2|-5]", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("("), "[", ParserPosition(0, 0)))
   |> because("a prior parser failed")
 
-  pickle.string("(", pickle.apppend_to_string)
+  pickle.string("(", string.append)
   |> pickle.then(
     pickle.do(
       Point(0, 0),
@@ -52,13 +53,13 @@ pub fn do_test() {
       fn(value, point_string) { value <> point_string },
     ),
   )
-  |> pickle.then(pickle.string(")", pickle.apppend_to_string))
+  |> pickle.then(pickle.string(")", string.append))
   |> pickle.parse("(510)", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String(","), ")", ParserPosition(0, 4)))
   |> because("the parser did fail")
 
-  pickle.string("[", pickle.apppend_to_string)
+  pickle.string("[", string.append)
   |> pickle.then(
     pickle.do(
       Point(0, 0),
@@ -73,7 +74,7 @@ pub fn do_test() {
       fn(value, point_string) { value <> point_string },
     ),
   )
-  |> pickle.then(pickle.string("]", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("]", string.append))
   |> pickle.parse("[5,10]", "", _)
   |> should.be_ok()
   |> should.equal("[5;10]")
@@ -83,21 +84,21 @@ pub fn do_test() {
 pub fn guard_test() {
   let error_message = "expected value to equal \"123\""
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.guard(fn(value) { value == "123" }, error_message))
   |> pickle.parse("abc", "", _)
   |> should.be_error()
   |> should.equal(GuardError(error_message, ParserPosition(0, 3)))
   |> because("abc doesn't equal 123")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.guard(fn(value) { value == "123" }, "error message"))
   |> pickle.parse("abd", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 2)))
   |> because("a prior parser failed")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.guard(fn(value) { value == "abc" }, "error message"))
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
@@ -106,14 +107,14 @@ pub fn guard_test() {
 }
 
 pub fn map_test() {
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.map(fn(value) { string.length(value) }))
   |> pickle.parse("a23", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("abc"), "a2", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.map(fn(value) { string.length(value) }))
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
@@ -122,7 +123,7 @@ pub fn map_test() {
 }
 
 pub fn map_error_test() {
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.map_error(fn(failure) {
     case failure {
       UnexpectedToken(String(token), _, pos) -> Something(token, pos)
@@ -135,7 +136,7 @@ pub fn map_error_test() {
   |> should.equal("abc")
   |> because("the parser did not fail")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.map_error(fn(failure) {
     case failure {
       UnexpectedToken(String(token), _, pos) -> Something(token, pos)
@@ -150,26 +151,26 @@ pub fn map_error_test() {
 }
 
 pub fn string_test() {
-  pickle.string("123", pickle.apppend_to_string)
-  |> pickle.then(pickle.string("abc", pickle.apppend_to_string))
+  pickle.string("123", string.append)
+  |> pickle.then(pickle.string("abc", string.append))
   |> pickle.parse("abc", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("123"), "a", ParserPosition(0, 0)))
   |> because("a doesn't equal 123")
 
-  pickle.string("a\nb", pickle.apppend_to_string)
+  pickle.string("a\nb", string.append)
   |> pickle.parse("a\nc", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("a\nb"), "a\nc", ParserPosition(1, 0)))
   |> because("a\nc doesn't equal a\nb")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.parse("", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(String("abc"), ParserPosition(0, 0)))
   |> because("no input was left to parse")
 
-  pickle.string("input", pickle.apppend_to_string)
+  pickle.string("input", string.append)
   |> pickle.parse("input", "", _)
   |> should.be_ok()
   |> should.equal("input")
@@ -177,21 +178,21 @@ pub fn string_test() {
 }
 
 pub fn any_test() {
-  pickle.string("test", pickle.apppend_to_string)
-  |> pickle.then(pickle.any(pickle.apppend_to_string))
+  pickle.string("test", string.append)
+  |> pickle.then(pickle.any(string.append))
   |> pickle.parse("tesd", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("test"), "tesd", ParserPosition(0, 3)))
   |> because("a prior parser failed")
 
-  pickle.any(pickle.apppend_to_string)
+  pickle.any(string.append)
   |> pickle.parse("", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(NonEof, ParserPosition(0, 0)))
   |> because("no input was left to parse")
 
-  pickle.any(pickle.apppend_to_string)
-  |> pickle.then(pickle.any(pickle.apppend_to_string))
+  pickle.any(string.append)
+  |> pickle.then(pickle.any(string.append))
   |> pickle.parse("ab", "", _)
   |> should.be_ok()
   |> should.equal("ab")
@@ -199,21 +200,21 @@ pub fn any_test() {
 }
 
 pub fn ascii_letter_test() {
-  pickle.ascii_letter(pickle.apppend_to_string)
+  pickle.ascii_letter(string.append)
   |> pickle.parse("", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(AsciiLetter, ParserPosition(0, 0)))
   |> because("no input was left to parse")
 
-  pickle.ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.ascii_letter(pickle.apppend_to_string))
+  pickle.ascii_letter(string.append)
+  |> pickle.then(pickle.ascii_letter(string.append))
   |> pickle.parse("a2", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(AsciiLetter, "2", ParserPosition(0, 1)))
   |> because("2 is not an ASCII letter")
 
-  pickle.ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.ascii_letter(pickle.apppend_to_string))
+  pickle.ascii_letter(string.append)
+  |> pickle.then(pickle.ascii_letter(string.append))
   |> pickle.parse("Aj", "", _)
   |> should.be_ok()
   |> should.equal("Aj")
@@ -221,14 +222,14 @@ pub fn ascii_letter_test() {
 }
 
 pub fn lowercase_ascii_letter_test() {
-  pickle.lowercase_ascii_letter(pickle.apppend_to_string)
+  pickle.lowercase_ascii_letter(string.append)
   |> pickle.parse("", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(LowercaseAsciiLetter, ParserPosition(0, 0)))
   |> because("no input was left to parse")
 
-  pickle.lowercase_ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.lowercase_ascii_letter(pickle.apppend_to_string))
+  pickle.lowercase_ascii_letter(string.append)
+  |> pickle.then(pickle.lowercase_ascii_letter(string.append))
   |> pickle.parse("aJ", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(
@@ -238,8 +239,8 @@ pub fn lowercase_ascii_letter_test() {
   ))
   |> because("J is not a lowercase ASCII letter")
 
-  pickle.lowercase_ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.lowercase_ascii_letter(pickle.apppend_to_string))
+  pickle.lowercase_ascii_letter(string.append)
+  |> pickle.then(pickle.lowercase_ascii_letter(string.append))
   |> pickle.parse("aj", "", _)
   |> should.be_ok()
   |> should.equal("aj")
@@ -247,14 +248,14 @@ pub fn lowercase_ascii_letter_test() {
 }
 
 pub fn uppercase_ascii_letter_test() {
-  pickle.uppercase_ascii_letter(pickle.apppend_to_string)
+  pickle.uppercase_ascii_letter(string.append)
   |> pickle.parse("", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedEof(UppercaseAsciiLetter, ParserPosition(0, 0)))
   |> because("no input was left to parse")
 
-  pickle.uppercase_ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.uppercase_ascii_letter(pickle.apppend_to_string))
+  pickle.uppercase_ascii_letter(string.append)
+  |> pickle.then(pickle.uppercase_ascii_letter(string.append))
   |> pickle.parse("Aj", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(
@@ -264,8 +265,8 @@ pub fn uppercase_ascii_letter_test() {
   ))
   |> because("j is not an uppercase ASCII letter")
 
-  pickle.uppercase_ascii_letter(pickle.apppend_to_string)
-  |> pickle.then(pickle.uppercase_ascii_letter(pickle.apppend_to_string))
+  pickle.uppercase_ascii_letter(string.append)
+  |> pickle.then(pickle.uppercase_ascii_letter(string.append))
   |> pickle.parse("AJ", "", _)
   |> should.be_ok()
   |> should.equal("AJ")
@@ -274,17 +275,15 @@ pub fn uppercase_ascii_letter_test() {
 
 pub fn optional_test() {
   pickle.optional(pickle.string("(", pickle.drop))
-  |> pickle.then(pickle.string("abc", pickle.apppend_to_string))
-  |> pickle.then(
-    pickle.optional(pickle.string("123", pickle.apppend_to_string)),
-  )
+  |> pickle.then(pickle.string("abc", string.append))
+  |> pickle.then(pickle.optional(pickle.string("123", string.append)))
   |> pickle.parse("(abd123", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 3)))
   |> because("a prior parser failed")
 
   pickle.optional(pickle.string("(", pickle.drop))
-  |> pickle.then(pickle.string("value", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("value", string.append))
   |> pickle.then(pickle.optional(pickle.string(")", pickle.drop)))
   |> pickle.parse("(value)", "", _)
   |> should.be_ok()
@@ -292,7 +291,7 @@ pub fn optional_test() {
   |> because("no non-optional parser failed")
 
   pickle.optional(pickle.string("(", pickle.drop))
-  |> pickle.then(pickle.string("value", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("value", string.append))
   |> pickle.then(pickle.optional(pickle.string(")", pickle.drop)))
   |> pickle.parse("value)", "", _)
   |> should.be_ok()
@@ -301,33 +300,25 @@ pub fn optional_test() {
 }
 
 pub fn many_test() {
-  pickle.string("ab", pickle.prepend_to_list)
+  pickle.string("ab", list.prepend)
   |> pickle.then(pickle.many(
     "",
-    pickle.string("a", pickle.apppend_to_string),
-    pickle.prepend_to_list,
+    pickle.string("a", string.append),
+    list.prepend,
   ))
   |> pickle.parse("aaa", [], _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("ab"), "aa", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.many(
-    "",
-    pickle.string("a", pickle.apppend_to_string),
-    pickle.prepend_to_list,
-  )
+  pickle.many("", pickle.string("a", string.append), list.prepend)
   |> pickle.parse("aaab", [], _)
   |> should.be_ok()
   |> should.equal(["a", "a", "a"])
   |> because("the given parser could be run three times without failing")
 
-  pickle.many(
-    "",
-    pickle.string("aa", pickle.apppend_to_string),
-    pickle.prepend_to_list,
-  )
-  |> pickle.then(pickle.string("ab", pickle.prepend_to_list))
+  pickle.many("", pickle.string("aa", string.append), list.prepend)
+  |> pickle.then(pickle.string("ab", list.prepend))
   |> pickle.parse("abab", [], _)
   |> should.be_ok()
   |> should.equal(["ab"])
@@ -335,43 +326,31 @@ pub fn many_test() {
 }
 
 pub fn many1_test() {
-  pickle.string("ab", pickle.prepend_to_list)
+  pickle.string("ab", list.prepend)
   |> pickle.then(pickle.many1(
     "",
-    pickle.string("a", pickle.apppend_to_string),
-    pickle.prepend_to_list,
+    pickle.string("a", string.append),
+    list.prepend,
   ))
   |> pickle.parse("aaa", [], _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("ab"), "aa", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.many1(
-    "",
-    pickle.string("aa", pickle.apppend_to_string),
-    pickle.prepend_to_list,
-  )
-  |> pickle.then(pickle.string("ab", pickle.prepend_to_list))
+  pickle.many1("", pickle.string("aa", string.append), list.prepend)
+  |> pickle.then(pickle.string("ab", list.prepend))
   |> pickle.parse("abab", [], _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
   |> because("the given parser failed at its first invocation")
 
-  pickle.many1(
-    "",
-    pickle.string("aa", pickle.apppend_to_string),
-    pickle.prepend_to_list,
-  )
+  pickle.many1("", pickle.string("aa", string.append), list.prepend)
   |> pickle.parse("aaaaab", [], _)
   |> should.be_ok()
   |> should.equal(["aa", "aa"])
   |> because("the given parser could be run twice without failing")
 
-  pickle.many1(
-    "",
-    pickle.string("a", pickle.apppend_to_string),
-    pickle.prepend_to_list,
-  )
+  pickle.many1("", pickle.string("a", string.append), list.prepend)
   |> pickle.parse("aaab", [], _)
   |> should.be_ok()
   |> should.equal(["a", "a", "a"])
@@ -1005,9 +984,9 @@ pub fn float_test() {
 pub fn until_test() {
   pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string("=", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
@@ -1016,9 +995,9 @@ pub fn until_test() {
 
   pickle.until(
     "",
-    pickle.string(";", pickle.apppend_to_string),
+    pickle.string(";", string.append),
     pickle.eol(pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse(";;;;;;,\n", "", _)
   |> should.be_error()
@@ -1027,12 +1006,7 @@ pub fn until_test() {
     "the parser encountered an unexpected token before the terminator succeeded",
   )
 
-  pickle.until(
-    "",
-    pickle.any(pickle.apppend_to_string),
-    pickle.eof(),
-    pickle.apppend_to_string,
-  )
+  pickle.until("", pickle.any(string.append), pickle.eof(), string.append)
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
@@ -1040,9 +1014,9 @@ pub fn until_test() {
 
   pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string("EQUALS", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1053,12 +1027,12 @@ pub fn until_test() {
     "",
     pickle.until(
       "",
-      pickle.any(pickle.apppend_to_string),
+      pickle.any(string.append),
       pickle.string("=", pickle.drop),
-      pickle.apppend_to_string,
+      string.append,
     )
       |> pickle.then(pickle.string("=", pickle.drop)),
-    pickle.prepend_to_list,
+    list.prepend,
   )
   |> pickle.parse("let test = \"value\";\nlet test2 = \"value2\";", [], _)
   |> should.be_ok()
@@ -1069,9 +1043,9 @@ pub fn until_test() {
 pub fn until1_test() {
   pickle.until1(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string("=", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse("let test value;", "", _)
   |> should.be_error()
@@ -1080,9 +1054,9 @@ pub fn until1_test() {
 
   pickle.until1(
     "",
-    pickle.string("test", pickle.apppend_to_string),
+    pickle.string("test", string.append),
     pickle.string("t", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse("test", "", _)
   |> should.be_error()
@@ -1091,9 +1065,9 @@ pub fn until1_test() {
 
   pickle.until1(
     "",
-    pickle.string(";", pickle.apppend_to_string),
+    pickle.string(";", string.append),
     pickle.eol(pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse(";;;;;;,\n", "", _)
   |> should.be_error()
@@ -1102,12 +1076,7 @@ pub fn until1_test() {
     "the parser encountered an unexpected token before the terminator succeeded",
   )
 
-  pickle.until1(
-    "",
-    pickle.any(pickle.apppend_to_string),
-    pickle.eof(),
-    pickle.apppend_to_string,
-  )
+  pickle.until1("", pickle.any(string.append), pickle.eof(), string.append)
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
   |> should.equal("let test = \"value\";")
@@ -1115,9 +1084,9 @@ pub fn until1_test() {
 
   pickle.until1(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string("EQUALS", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   )
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1128,12 +1097,12 @@ pub fn until1_test() {
     "",
     pickle.until1(
       "",
-      pickle.any(pickle.apppend_to_string),
+      pickle.any(string.append),
       pickle.string("=", pickle.drop),
-      pickle.apppend_to_string,
+      string.append,
     )
       |> pickle.then(pickle.string("=", pickle.drop)),
-    pickle.prepend_to_list,
+    list.prepend,
   )
   |> pickle.parse("let test = \"value\";\nlet test2 = \"value2\";", [], _)
   |> should.be_ok()
@@ -1151,9 +1120,9 @@ pub fn skip_until_test() {
   pickle.skip_until(pickle.string("=", pickle.drop))
   |> pickle.then(pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string(";", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   ))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
@@ -1163,9 +1132,9 @@ pub fn skip_until_test() {
   pickle.skip_until(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string(" ", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   ))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1189,9 +1158,9 @@ pub fn skip_until1_test() {
   pickle.skip_until1(pickle.string("=", pickle.drop))
   |> pickle.then(pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string(";", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   ))
   |> pickle.parse("let test = \"value\";", "", _)
   |> should.be_ok()
@@ -1201,9 +1170,9 @@ pub fn skip_until1_test() {
   pickle.skip_until1(pickle.string("EQUALS", pickle.drop))
   |> pickle.then(pickle.until(
     "",
-    pickle.any(pickle.apppend_to_string),
+    pickle.any(string.append),
     pickle.string(" ", pickle.drop),
-    pickle.apppend_to_string,
+    string.append,
   ))
   |> pickle.parse("var test EQUALS something", "", _)
   |> should.be_ok()
@@ -1212,26 +1181,26 @@ pub fn skip_until1_test() {
 }
 
 pub fn whitespace_test() {
-  pickle.string("aa", pickle.apppend_to_string)
-  |> pickle.then(pickle.whitespace(pickle.apppend_to_string))
+  pickle.string("aa", string.append)
+  |> pickle.then(pickle.whitespace(string.append))
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.whitespace(pickle.apppend_to_string)
+  pickle.whitespace(string.append)
   |> pickle.parse("\t \n", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
   |> because("the entire input consisted of whitespace")
 
-  pickle.whitespace(pickle.apppend_to_string)
+  pickle.whitespace(string.append)
   |> pickle.parse("\t \nabc", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
   |> because("it consumed all whitespace until reaching non-whitespace tokens")
 
-  pickle.whitespace(pickle.apppend_to_string)
+  pickle.whitespace(string.append)
   |> pickle.parse("not_whitespace\t \n", "", _)
   |> should.be_ok()
   |> should.equal("")
@@ -1239,26 +1208,26 @@ pub fn whitespace_test() {
 }
 
 pub fn whitespace1_test() {
-  pickle.string("aa", pickle.apppend_to_string)
-  |> pickle.then(pickle.whitespace1(pickle.apppend_to_string))
+  pickle.string("aa", string.append)
+  |> pickle.then(pickle.whitespace1(string.append))
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.whitespace1(pickle.apppend_to_string)
+  pickle.whitespace1(string.append)
   |> pickle.parse("not_whitespace\t \n", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(Whitespace, "n", ParserPosition(0, 0)))
   |> because("the given parser failed at its first invocation")
 
-  pickle.whitespace1(pickle.apppend_to_string)
+  pickle.whitespace1(string.append)
   |> pickle.parse("\t \n", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
   |> because("the entire input consisted of whitespace")
 
-  pickle.whitespace1(pickle.apppend_to_string)
+  pickle.whitespace1(string.append)
   |> pickle.parse("\t \nabc", "", _)
   |> should.be_ok()
   |> should.equal("\t \n")
@@ -1266,16 +1235,16 @@ pub fn whitespace1_test() {
 }
 
 pub fn skip_whitespace_test() {
-  pickle.string("aa", pickle.apppend_to_string)
+  pickle.string("aa", string.append)
   |> pickle.then(pickle.skip_whitespace())
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("aa"), "ab", ParserPosition(0, 1)))
   |> because("a prior parser failed")
 
-  pickle.string("something", pickle.apppend_to_string)
+  pickle.string("something", string.append)
   |> pickle.then(pickle.skip_whitespace())
-  |> pickle.then(pickle.string("abc", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("abc", string.append))
   |> pickle.parse("something\t \n abc", "", _)
   |> should.be_ok()
   |> should.equal("somethingabc")
@@ -1289,7 +1258,7 @@ pub fn skip_whitespace_test() {
 }
 
 pub fn skip_whitespace1_test() {
-  pickle.string("aa", pickle.apppend_to_string)
+  pickle.string("aa", string.append)
   |> pickle.then(pickle.skip_whitespace1())
   |> pickle.parse("ab\t \n", "", _)
   |> should.be_error()
@@ -1302,9 +1271,9 @@ pub fn skip_whitespace1_test() {
   |> should.equal(UnexpectedToken(Whitespace, "n", ParserPosition(0, 0)))
   |> because("the given parser failed at its first invocation")
 
-  pickle.string("something", pickle.apppend_to_string)
+  pickle.string("something", string.append)
   |> pickle.then(pickle.skip_whitespace1())
-  |> pickle.then(pickle.string("abc", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("abc", string.append))
   |> pickle.parse("something\t \n abc", "", _)
   |> should.be_ok()
   |> should.equal("somethingabc")
@@ -1313,8 +1282,8 @@ pub fn skip_whitespace1_test() {
 
 pub fn one_of_test() {
   pickle.one_of([
-    pickle.string("abc", pickle.apppend_to_string),
-    pickle.string("abd", pickle.apppend_to_string),
+    pickle.string("abc", string.append),
+    pickle.string("abd", string.append),
   ])
   |> pickle.parse("ade", "", _)
   |> should.be_error()
@@ -1326,11 +1295,11 @@ pub fn one_of_test() {
   )
   |> because("all given parsers failed")
 
-  pickle.string("123", pickle.apppend_to_string)
+  pickle.string("123", string.append)
   |> pickle.then(
     pickle.one_of([
-      pickle.string("abc", pickle.apppend_to_string),
-      pickle.string("abd", pickle.apppend_to_string),
+      pickle.string("abc", string.append),
+      pickle.string("abd", string.append),
     ]),
   )
   |> pickle.parse("abc", "", _)
@@ -1339,8 +1308,8 @@ pub fn one_of_test() {
   |> because("a prior parser failed")
 
   pickle.one_of([
-    pickle.string("abc", pickle.apppend_to_string),
-    pickle.string("abd", pickle.apppend_to_string),
+    pickle.string("abc", string.append),
+    pickle.string("abd", string.append),
   ])
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
@@ -1348,8 +1317,8 @@ pub fn one_of_test() {
   |> because("the first given parser succeeded")
 
   pickle.one_of([
-    pickle.string("abc", pickle.apppend_to_string),
-    pickle.string("abd", pickle.apppend_to_string),
+    pickle.string("abc", string.append),
+    pickle.string("abd", string.append),
   ])
   |> pickle.parse("abd", "", _)
   |> should.be_ok()
@@ -1364,14 +1333,14 @@ pub fn one_of_test() {
 }
 
 pub fn return_test() {
-  pickle.string("abd", pickle.prepend_to_list)
+  pickle.string("abd", list.prepend)
   |> pickle.then(pickle.return(10))
   |> pickle.parse("abc", [], _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
   |> because("a prior parser failed")
 
-  pickle.string("abc", pickle.prepend_to_list)
+  pickle.string("abc", list.prepend)
   |> pickle.then(pickle.return(20))
   |> pickle.parse("abc", [], _)
   |> should.be_ok()
@@ -1380,7 +1349,7 @@ pub fn return_test() {
 }
 
 pub fn eof_test() {
-  pickle.string("ab\nd", pickle.apppend_to_string)
+  pickle.string("ab\nd", string.append)
   |> pickle.then(pickle.eof())
   |> pickle.parse("ab\nc", "", _)
   |> should.be_error()
@@ -1391,14 +1360,14 @@ pub fn eof_test() {
   ))
   |> because("a prior parser failed")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.eof())
   |> pickle.parse("abcd", "", _)
   |> should.be_error()
   |> should.equal(UnexpectedToken(Eof, "d", ParserPosition(0, 3)))
   |> because("there was input left to parse")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.eof())
   |> pickle.parse("abc", "", _)
   |> should.be_ok()
@@ -1421,17 +1390,17 @@ pub fn eol_test() {
   |> should.equal(UnexpectedEof(Eol, ParserPosition(0, 3)))
   |> because("no end-of-line character could be found")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.eol(pickle.drop))
-  |> pickle.then(pickle.string("def", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("def", string.append))
   |> pickle.parse("abc\ndef", "", _)
   |> should.be_ok()
   |> should.equal("abcdef")
   |> because("an LF character could be found")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.eol(pickle.drop))
-  |> pickle.then(pickle.string("def", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("def", string.append))
   |> pickle.parse("abc\r\ndef", "", _)
   |> should.be_ok()
   |> should.equal("abcdef")
@@ -1439,7 +1408,7 @@ pub fn eol_test() {
 }
 
 pub fn not_test() {
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.not(
     pickle.string("123", pickle.drop),
     DidNotExpectThisToSucceed,
@@ -1449,7 +1418,7 @@ pub fn not_test() {
   |> should.equal(UnexpectedToken(String("abc"), "abd", ParserPosition(0, 2)))
   |> because("a prior parser failed")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.not(
     pickle.string("123", pickle.drop),
     DidNotExpectThisToSucceed,
@@ -1459,7 +1428,7 @@ pub fn not_test() {
   |> should.equal(NotError(DidNotExpectThisToSucceed, ParserPosition(0, 3)))
   |> because("123 could be parsed successfully")
 
-  pickle.string("abc", pickle.apppend_to_string)
+  pickle.string("abc", string.append)
   |> pickle.then(pickle.not(
     pickle.string("123", pickle.drop),
     DidNotExpectThisToSucceed,
@@ -1485,14 +1454,14 @@ pub fn lookahead_test() {
   |> because("abc could not be found")
 
   pickle.lookahead(pickle.string("abc", pickle.drop))
-  |> pickle.then(pickle.string("123\n", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("123\n", string.append))
   |> pickle.parse("123\nabc456", "", _)
   |> should.be_ok()
   |> should.equal("123\n")
   |> because("abc could be found")
 
   pickle.lookahead(pickle.eof())
-  |> pickle.then(pickle.string("123", pickle.apppend_to_string))
+  |> pickle.then(pickle.string("123", string.append))
   |> pickle.parse("123", "", _)
   |> should.be_ok()
   |> should.equal("123")

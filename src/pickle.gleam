@@ -62,18 +62,6 @@ pub fn drop(value: a, _: b) -> a {
   value
 }
 
-/// A mapper to append the parsed string of the child parser to
-/// the string value of the parent parser.
-pub fn apppend_to_string(value: String, appendage: String) -> String {
-  value <> appendage
-}
-
-/// A mapper to prepend the parsed value of the child parser to
-/// the list value of the parent parser.
-pub fn prepend_to_list(value: List(a), appendage: a) -> List(a) {
-  [appendage, ..value]
-}
-
 /// Applies the provided input and initial value to the given parser
 /// to parse the input and transform the initial value.
 pub fn parse(
@@ -398,7 +386,7 @@ pub fn skip_until1(terminator: Parser(a, b, c)) -> Parser(a, a, c) {
 /// Parses whitespace zero to `n` times until encountering a non-whitespace
 /// token.
 pub fn whitespace(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
-  many("", take_if(is_whitespace, Whitespace, apppend_to_string), mapper)
+  many("", take_if(is_whitespace, Whitespace, string.append), mapper)
 }
 
 /// Parses whitespace one to `n` times until encountering a non-whitespace
@@ -406,7 +394,7 @@ pub fn whitespace(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
 /// 
 /// It fails if not at least one whitespace token could be parsed.
 pub fn whitespace1(mapper: fn(a, String) -> a) -> Parser(a, a, b) {
-  many1("", take_if(is_whitespace, Whitespace, apppend_to_string), mapper)
+  many1("", take_if(is_whitespace, Whitespace, string.append), mapper)
 }
 
 /// Parses whitespace zero to `n` times until encountering a non-whitespace
