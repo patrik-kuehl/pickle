@@ -259,6 +259,7 @@ Pickle happens to offer just the right tool for this job, `pickle/many`. This pa
 `n` times until it fails and is offering us a way to accumulate the collected points.
 
 ```gleam
+import gleam/list
 import pickle.{type Parser}
 
 // ...
@@ -270,15 +271,14 @@ fn points_parser() -> Parser(List(Point), List(Point), PointError) {
       |> pickle.then(
         pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
-    pickle.prepend_to_list,
+    list.prepend,
   )
 }
 ```
 
 Here we use our `point_parser` function combined with a parser to either parse a comma or EOF to set the head of the
 parser to the next point. `pickle/many` runs our parser zero to `n` times until it fails. Each parser will be given a
-blank point as an initial value. Afterwards we prepend the parsed point to our list of points via
-`pickle/prepend_to_list`, which is another mapper provided by Pickle.
+blank point as an initial value. Afterwards we prepend the parsed point to our list of points via `gleam/list/prepend`.
 
 Keep in mind that `pickle/many` never fails and adheres to the best-effort error handling strategy. As soon as it
 encounters invalid input it just stops consuming any more tokens and returns the collected items that could be parsed
@@ -292,6 +292,7 @@ be a viable option, so you're still able to convey validation issues to the cons
 items with an invalid state before running the validation. The best approach depends on your use case eventually.
 
 ```gleam
+import gleam/list
 import pickle.{type Parser}
 
 /// ...
