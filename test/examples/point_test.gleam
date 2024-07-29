@@ -1,3 +1,4 @@
+import gleam/list
 import gleeunit/should
 import pickle.{
   type Parser, BinaryDigit, DecimalDigit, GuardError, HexadecimalDigit,
@@ -109,7 +110,7 @@ fn points_parser() -> Parser(List(Point), List(Point), PointError) {
       |> pickle.then(
         pickle.one_of([pickle.string(",", pickle.drop), pickle.eof()]),
       ),
-    pickle.prepend_to_list,
+    list.prepend,
   )
 }
 
