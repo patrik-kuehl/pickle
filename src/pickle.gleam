@@ -233,6 +233,11 @@ pub fn many1(
   }
 }
 
+/// Parses a single binary digit (0|1).
+pub fn binary_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_digit(2, BinaryDigit, is_binary_digit, mapper)
+}
+
 /// Parses a binary integer.
 pub fn binary_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)
@@ -554,6 +559,26 @@ fn do_many(
   }
 }
 
+fn do_digit(
+  base: Int,
+  expected_token: ExpectedToken,
+  digit_predicate: fn(String) -> Bool,
+  mapper: fn(a, Int) -> a,
+) -> Parser(a, a, b) {
+  fn(parsed) {
+    let Parsed(tokens, pos, value) = parsed
+
+    {
+      take_if(digit_predicate, expected_token, string.append)
+      |> then(
+        map(fn(string_digit) {
+          unsafe_string_to_int(string_digit, base) |> mapper(value, _)
+        }),
+      )
+    }(Parsed(tokens, pos, ""))
+  }
+}
+
 fn do_integer(
   format_prefix_lowercase: String,
   format_prefix_uppercase: String,
@@ -592,9 +617,7 @@ fn do_integer(
       )
       |> then(
         map(fn(string_integer) {
-          let assert Ok(integer) = int.base_parse(sign <> string_integer, base)
-
-          mapper(value, integer)
+          unsafe_string_to_int(sign <> string_integer, base) |> mapper(value, _)
         }),
       )
     }(advanced_parsed)
@@ -717,6 +740,12 @@ fn do_lookahead(
           |> do_lookahead(entrypoint_parsed, parser)
       }
   }
+}
+
+fn unsafe_string_to_int(value: String, base: Int) -> Int {
+  let assert Ok(integer) = int.base_parse(value, base)
+
+  integer
 }
 
 fn add_integral_part_to_string_float_value(float_as_string: String) -> String {
