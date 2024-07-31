@@ -437,6 +437,105 @@ pub fn hexadecimal_digit_test() {
   |> because("the parser could consume two hexadecimal digits")
 }
 
+pub fn integer_test() {
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("not_an_integer", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)))
+  |> because("the provided input is not an integer")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("fefefe", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 0)))
+  |> because("the provided input is a hexadecimal integer")
+
+  pickle.string("abd", pickle.drop)
+  |> pickle.then(pickle.integer(fn(_, integer) { integer }))
+  |> pickle.parse("abc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
+  |> because("a prior parser failed")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("-", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("+", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
+  |> because("no input was left to parse")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("+f", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
+  |> because("the provided positive decimal integer is invalid")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("-f", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
+  |> because("the provided negative decimal integer is invalid")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("110", 0, _)
+  |> should.be_ok()
+  |> should.equal(110)
+  |> because("the parser was given a valid unsigned decimal integer")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("+10", 0, _)
+  |> should.be_ok()
+  |> should.equal(10)
+  |> because("the parser was given a valid positive decimal integer")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("-101", 0, _)
+  |> should.be_ok()
+  |> should.equal(-101)
+  |> because("the parser was given a valid negative decimal integer")
+
+  pickle.integer(fn(_, integer) { integer })
+  |> pickle.parse("10abc", 0, _)
+  |> should.be_ok()
+  |> should.equal(10)
+  |> because("the parser stopped consuming input after the decimal integer")
+
+  pickle.string("[", pickle.drop)
+  |> pickle.then(
+    pickle.integer(fn(value, integer) { Point(..value, x: integer) }),
+  )
+  |> pickle.then(pickle.string(",", pickle.drop))
+  |> pickle.then(
+    pickle.integer(fn(value, integer) { Point(..value, y: integer) }),
+  )
+  |> pickle.then(pickle.string("]", pickle.drop))
+  |> pickle.parse("[-5,10]", Point(0, 0), _)
+  |> should.be_ok()
+  |> should.equal(Point(-5, 10))
+  |> because("the point could be parsed")
+
+  pickle.integer(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
+  |> pickle.then(pickle.string(";", pickle.drop))
+  |> pickle.then(pickle.integer(pickle.drop))
+  |> pickle.parse("100;-1000;11", 0, _)
+  |> should.be_ok()
+  |> should.equal(-900)
+  |> because("the last decimal integer is not added to the sum")
+}
+
 pub fn binary_integer_test() {
   pickle.binary_integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
@@ -464,34 +563,22 @@ pub fn binary_integer_test() {
   |> because("no input was left to parse")
 
   pickle.binary_integer(fn(_, integer) { integer })
-  |> pickle.parse("0b", 0, _)
+  |> pickle.parse("-", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
 
   pickle.binary_integer(fn(_, integer) { integer })
-  |> pickle.parse("0B", 0, _)
+  |> pickle.parse("+", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(BinaryDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
-
-  pickle.binary_integer(fn(_, integer) { integer })
-  |> pickle.parse("0b2", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(BinaryDigit, "2", ParserPosition(0, 2)))
-  |> because("the provided prefixed binary integer is invalid")
-
-  pickle.binary_integer(fn(_, integer) { integer })
-  |> pickle.parse("0b110", 0, _)
-  |> should.be_ok()
-  |> should.equal(6)
-  |> because("the parser was given a valid prefixed binary integer")
 
   pickle.binary_integer(fn(_, integer) { integer })
   |> pickle.parse("110", 0, _)
   |> should.be_ok()
   |> should.equal(6)
-  |> because("the parser was given a valid unprefixed binary integer")
+  |> because("the parser was given a valid unsigned binary integer")
 
   pickle.binary_integer(fn(_, integer) { integer })
   |> pickle.parse("+10", 0, _)
@@ -506,7 +593,7 @@ pub fn binary_integer_test() {
   |> because("the parser was given a valid negative binary integer")
 
   pickle.binary_integer(fn(_, integer) { integer })
-  |> pickle.parse("0b10abc", 0, _)
+  |> pickle.parse("10abc", 0, _)
   |> should.be_ok()
   |> should.equal(2)
   |> because("the parser stopped consuming input after the binary integer")
@@ -520,7 +607,7 @@ pub fn binary_integer_test() {
     pickle.binary_integer(fn(value, integer) { Point(..value, y: integer) }),
   )
   |> pickle.then(pickle.string("]", pickle.drop))
-  |> pickle.parse("[0b11,101]", Point(0, 0), _)
+  |> pickle.parse("[11,101]", Point(0, 0), _)
   |> should.be_ok()
   |> should.equal(Point(3, 5))
   |> because("the point could be parsed")
@@ -530,133 +617,10 @@ pub fn binary_integer_test() {
   |> pickle.then(pickle.binary_integer(fn(value, integer) { value + integer }))
   |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.binary_integer(pickle.drop))
-  |> pickle.parse("100;0b1000;11", 0, _)
+  |> pickle.parse("100;1000;11", 0, _)
   |> should.be_ok()
   |> should.equal(12)
   |> because("the last binary integer is not added to the sum")
-}
-
-pub fn decimal_integer_test() {
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("not_an_integer", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)))
-  |> because("the provided input is not an integer")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("fefefe", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 0)))
-  |> because("the provided input is a hexadecimal integer")
-
-  pickle.string("abd", pickle.drop)
-  |> pickle.then(pickle.decimal_integer(fn(_, integer) { integer }))
-  |> pickle.parse("abc110", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
-  |> because("a prior parser failed")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 0)))
-  |> because("no input was left to parse")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("-", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
-  |> because("no input was left to parse")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("+", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 1)))
-  |> because("no input was left to parse")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("+f", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
-  |> because("the provided positive decimal integer is invalid")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("-f", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 1)))
-  |> because("the provided negative decimal integer is invalid")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0d", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 2)))
-  |> because("no input was left to parse")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0D", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 2)))
-  |> because("no input was left to parse")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0Df", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(DecimalDigit, "f", ParserPosition(0, 2)))
-  |> because("the provided prefixed decimal integer is invalid")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0d110", 0, _)
-  |> should.be_ok()
-  |> should.equal(110)
-  |> because("the parser was given a valid prefixed decimal integer")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("110", 0, _)
-  |> should.be_ok()
-  |> should.equal(110)
-  |> because("the parser was given a valid unprefixed decimal integer")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("+10", 0, _)
-  |> should.be_ok()
-  |> should.equal(10)
-  |> because("the parser was given a valid positive decimal integer")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("-101", 0, _)
-  |> should.be_ok()
-  |> should.equal(-101)
-  |> because("the parser was given a valid negative decimal integer")
-
-  pickle.decimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("10abc", 0, _)
-  |> should.be_ok()
-  |> should.equal(10)
-  |> because("the parser stopped consuming input after the decimal integer")
-
-  pickle.string("[", pickle.drop)
-  |> pickle.then(
-    pickle.decimal_integer(fn(value, integer) { Point(..value, x: integer) }),
-  )
-  |> pickle.then(pickle.string(",", pickle.drop))
-  |> pickle.then(
-    pickle.decimal_integer(fn(value, integer) { Point(..value, y: integer) }),
-  )
-  |> pickle.then(pickle.string("]", pickle.drop))
-  |> pickle.parse("[-5,10]", Point(0, 0), _)
-  |> should.be_ok()
-  |> should.equal(Point(-5, 10))
-  |> because("the point could be parsed")
-
-  pickle.decimal_integer(fn(value, integer) { value + integer })
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.decimal_integer(fn(value, integer) { value + integer }))
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.decimal_integer(pickle.drop))
-  |> pickle.parse("100;-1000;11", 0, _)
-  |> should.be_ok()
-  |> should.equal(-900)
-  |> because("the last decimal integer is not added to the sum")
 }
 
 pub fn hexadecimal_integer_test() {
@@ -680,34 +644,22 @@ pub fn hexadecimal_integer_test() {
   |> because("no input was left to parse")
 
   pickle.hexadecimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0x", 0, _)
+  |> pickle.parse("-", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(HexadecimalDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(HexadecimalDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
 
   pickle.hexadecimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0X", 0, _)
+  |> pickle.parse("+", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(HexadecimalDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(HexadecimalDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
-
-  pickle.hexadecimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0x-f", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(HexadecimalDigit, "-", ParserPosition(0, 2)))
-  |> because("the provided prefixed hexadecimal integer is invalid")
-
-  pickle.hexadecimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0xefefef", 0, _)
-  |> should.be_ok()
-  |> should.equal(15_724_527)
-  |> because("the parser was given a valid prefixed hexadecimal integer")
 
   pickle.hexadecimal_integer(fn(_, integer) { integer })
   |> pickle.parse("1F", 0, _)
   |> should.be_ok()
   |> should.equal(31)
-  |> because("the parser was given a valid unprefixed hexadecimal integer")
+  |> because("the parser was given a valid unsigned hexadecimal integer")
 
   pickle.hexadecimal_integer(fn(_, integer) { integer })
   |> pickle.parse("+B", 0, _)
@@ -722,7 +674,7 @@ pub fn hexadecimal_integer_test() {
   |> because("the parser was given a valid negative hexadecimal integer")
 
   pickle.hexadecimal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0XFEsomething else", 0, _)
+  |> pickle.parse("FEsomething else", 0, _)
   |> should.be_ok()
   |> should.equal(254)
   |> because("the parser stopped consuming input after the hexadecimal integer")
@@ -736,7 +688,7 @@ pub fn hexadecimal_integer_test() {
     pickle.hexadecimal_integer(fn(value, integer) { Point(..value, y: integer) }),
   )
   |> pickle.then(pickle.string("]", pickle.drop))
-  |> pickle.parse("[0xc,1A]", Point(0, 0), _)
+  |> pickle.parse("[c,1A]", Point(0, 0), _)
   |> should.be_ok()
   |> should.equal(Point(12, 26))
   |> because("the point could be parsed")
@@ -748,7 +700,7 @@ pub fn hexadecimal_integer_test() {
   )
   |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.hexadecimal_integer(pickle.drop))
-  |> pickle.parse("1F;0x9e;-FFFeee", 0, _)
+  |> pickle.parse("1F;9e;-FFFeee", 0, _)
   |> should.be_ok()
   |> should.equal(189)
   |> because("the last hexadecimal integer is not added to the sum")
@@ -775,34 +727,22 @@ pub fn octal_integer_test() {
   |> because("no input was left to parse")
 
   pickle.octal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0o", 0, _)
+  |> pickle.parse("-", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
 
   pickle.octal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0O", 0, _)
+  |> pickle.parse("+", 0, _)
   |> should.be_error()
-  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 2)))
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 1)))
   |> because("no input was left to parse")
-
-  pickle.octal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0o-7", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(OctalDigit, "-", ParserPosition(0, 2)))
-  |> because("the provided prefixed octal integer is invalid")
-
-  pickle.octal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0o77", 0, _)
-  |> should.be_ok()
-  |> should.equal(63)
-  |> because("the parser was given a valid prefixed octal integer")
 
   pickle.octal_integer(fn(_, integer) { integer })
   |> pickle.parse("12", 0, _)
   |> should.be_ok()
   |> should.equal(10)
-  |> because("the parser was given a valid unprefixed octal integer")
+  |> because("the parser was given a valid unsigned octal integer")
 
   pickle.octal_integer(fn(_, integer) { integer })
   |> pickle.parse("+23", 0, _)
@@ -817,7 +757,7 @@ pub fn octal_integer_test() {
   |> because("the parser was given a valid negative octal integer")
 
   pickle.octal_integer(fn(_, integer) { integer })
-  |> pickle.parse("0O11something else", 0, _)
+  |> pickle.parse("11something else", 0, _)
   |> should.be_ok()
   |> should.equal(9)
   |> because("the parser stopped consuming input after the octal integer")
@@ -831,7 +771,7 @@ pub fn octal_integer_test() {
     pickle.octal_integer(fn(value, integer) { Point(..value, y: integer) }),
   )
   |> pickle.then(pickle.string("]", pickle.drop))
-  |> pickle.parse("[0o45,-11]", Point(0, 0), _)
+  |> pickle.parse("[45,-11]", Point(0, 0), _)
   |> should.be_ok()
   |> should.equal(Point(37, -9))
   |> because("the point could be parsed")
@@ -841,111 +781,10 @@ pub fn octal_integer_test() {
   |> pickle.then(pickle.octal_integer(fn(value, integer) { value + integer }))
   |> pickle.then(pickle.string(";", pickle.drop))
   |> pickle.then(pickle.octal_integer(pickle.drop))
-  |> pickle.parse("-15;0o11;77", 0, _)
+  |> pickle.parse("-15;11;77", 0, _)
   |> should.be_ok()
   |> should.equal(-4)
   |> because("the last octal integer is not added to the sum")
-}
-
-pub fn integer_test() {
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("not_an_integer", 0, _)
-  |> should.be_error()
-  |> should.equal(
-    OneOfError([
-      UnexpectedToken(OctalDigit, "n", ParserPosition(0, 0)),
-      UnexpectedToken(HexadecimalDigit, "n", ParserPosition(0, 0)),
-      UnexpectedToken(BinaryDigit, "n", ParserPosition(0, 0)),
-      UnexpectedToken(DecimalDigit, "n", ParserPosition(0, 0)),
-    ]),
-  )
-  |> because("the provided input is not an integer")
-
-  pickle.string("abc", pickle.drop)
-  |> pickle.then(pickle.integer(fn(_, integer) { integer }))
-  |> pickle.parse("abc-", 0, _)
-  |> should.be_error()
-  |> should.equal(
-    OneOfError([
-      UnexpectedEof(OctalDigit, ParserPosition(0, 4)),
-      UnexpectedEof(HexadecimalDigit, ParserPosition(0, 4)),
-      UnexpectedEof(BinaryDigit, ParserPosition(0, 4)),
-      UnexpectedEof(DecimalDigit, ParserPosition(0, 4)),
-    ]),
-  )
-  |> because("no input was left to parse")
-
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("", 0, _)
-  |> should.be_error()
-  |> should.equal(
-    OneOfError([
-      UnexpectedEof(OctalDigit, ParserPosition(0, 0)),
-      UnexpectedEof(HexadecimalDigit, ParserPosition(0, 0)),
-      UnexpectedEof(BinaryDigit, ParserPosition(0, 0)),
-      UnexpectedEof(DecimalDigit, ParserPosition(0, 0)),
-    ]),
-  )
-  |> because("no input was left to parse")
-
-  pickle.string("abd", pickle.drop)
-  |> pickle.then(pickle.integer(fn(_, integer) { integer }))
-  |> pickle.parse("abc2000", 0, _)
-  |> should.be_error()
-  |> should.equal(UnexpectedToken(String("abd"), "abc", ParserPosition(0, 2)))
-  |> because("a prior parser failed")
-
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("250", 0, _)
-  |> should.be_ok()
-  |> should.equal(250)
-  |> because("the parser was given a valid integer")
-
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("+120", 0, _)
-  |> should.be_ok()
-  |> should.equal(120)
-  |> because("the parser was given a valid integer")
-
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("-75", 0, _)
-  |> should.be_ok()
-  |> should.equal(-75)
-  |> because("the parser was given a valid integer")
-
-  pickle.integer(fn(_, integer) { integer })
-  |> pickle.parse("5005abc", 0, _)
-  |> should.be_ok()
-  |> should.equal(5005)
-  |> because("the parser stopped consuming input after the integer")
-
-  pickle.string("[", pickle.drop)
-  |> pickle.then(
-    pickle.integer(fn(value, integer) { Point(..value, x: integer) }),
-  )
-  |> pickle.then(pickle.string(",", pickle.drop))
-  |> pickle.then(
-    pickle.integer(fn(value, integer) { Point(..value, y: integer) }),
-  )
-  |> pickle.then(pickle.string("]", pickle.drop))
-  |> pickle.parse("[20,72]", Point(0, 0), _)
-  |> should.be_ok()
-  |> should.equal(Point(20, 72))
-  |> because("the point could be parsed")
-
-  pickle.integer(fn(value, integer) { value + integer })
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.integer(fn(value, integer) { value + integer }))
-  |> pickle.then(pickle.string(";", pickle.drop))
-  |> pickle.then(pickle.integer(pickle.drop))
-  |> pickle.parse("100;0b10;0xca;0o77;400", 0, _)
-  |> should.be_ok()
-  |> should.equal(367)
-  |> because("the last integer is not added to the sum")
 }
 
 pub fn float_test() {

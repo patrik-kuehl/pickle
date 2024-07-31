@@ -44,13 +44,12 @@ eventually, we drop it via `pickle/drop`, which is a mapper provided by Pickle t
 We then (no pun intended) use `pickle/then` to combine two parsers. You'll be using this a lot when using Pickle and for
 brevity reasons, `pickle/then` won't be mentioned anymore from this point on.
 
-The prior parser is combined with `pickle/integer` to parse an integer, our `x` value, which we use to create a new
-point with our acquired `x` value. `pickle/integer` parses the given tokens as long as they can be represented as an
-integer, so it doesn't expect an integer of a specific length.
+The prior parser is combined with `pickle/integer` to parse a decimal integer, our `x` value, which we use to create a
+new point with our acquired `x` value. `pickle/integer` parses the given tokens as long as they can be represented as a
+decimal integer, so it doesn't expect an integer of a specific length.
 
-`pickle/integer` supports different numeric formats (binary, decimal, hexadecimal and octal). If you need or want to
-parse an integer of a specific numeric format, you can take a look at Pickle's module documentation. In this guide we'll
-only be using decimal integers, but feel free to play around.
+If you need or want to parse an integer of a different base, you can take a look at Pickle's module documentation. In
+this guide we'll only be using decimal integers, but feel free to play around.
 
 We then continue our adventure with `pickle/string` to parse and drop the comma.
 
@@ -64,6 +63,8 @@ Well done! Now we have a basic parser that we can use to parse points.
 To apply the parser we use `pickle/parse`.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser}
 
 /// ...
@@ -92,6 +93,8 @@ Before you write two parsers with a lot of duplication for each shape, take a lo
 it to the prior one we've written.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser}
 
 // ...
@@ -119,6 +122,8 @@ opening and closing brackets.
 Let's see it in action.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser}
 
 /// ...
@@ -160,6 +165,8 @@ We then need to replace the third type parameter of `Parser` with our custom err
 to expect in case of a validation failure.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser}
 
 // ...
@@ -183,6 +190,8 @@ fn point_parser() -> Parser(Point, Point, PointError) {
 Now we need to add some validation. For this purpose we use `pickle/guard`.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser}
 
 // ...
@@ -230,6 +239,8 @@ than -10 and greater than 10.
 Trying to parse a point with invalid values now results in a `GuardError`, which contains our error value.
 
 ```gleam
+import gleam/io
+import gleam/string
 import pickle.{type Parser, GuardError}
 
 /// ...
@@ -259,7 +270,9 @@ Pickle happens to offer just the right tool for this job, `pickle/many`. This pa
 `n` times until it fails and is offering us a way to accumulate the collected points.
 
 ```gleam
+import gleam/io
 import gleam/list
+import gleam/string
 import pickle.{type Parser}
 
 // ...
@@ -292,7 +305,9 @@ be a viable option, so you're still able to convey validation issues to the cons
 items with an invalid state before running the validation. The best approach depends on your use case eventually.
 
 ```gleam
+import gleam/io
 import gleam/list
+import gleam/string
 import pickle.{type Parser}
 
 /// ...

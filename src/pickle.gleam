@@ -243,53 +243,27 @@ pub fn hexadecimal_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_digit(16, HexadecimalDigit, is_hexadecimal_digit, mapper)
 }
 
-/// Parses a binary integer.
-pub fn binary_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
-  do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)
+/// Parses a decimal integer.
+pub fn integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_integer(10, DecimalDigit, is_decimal_digit, mapper)
 }
 
-/// Parses a decimal integer.
-pub fn decimal_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
-  do_integer("d", "D", 10, DecimalDigit, is_decimal_digit, mapper)
+/// Parses a binary integer.
+pub fn binary_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_integer(2, BinaryDigit, is_binary_digit, mapper)
 }
 
 /// Parses a hexadecimal integer.
 pub fn hexadecimal_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
-  do_integer("x", "X", 16, HexadecimalDigit, is_hexadecimal_digit, mapper)
+  do_integer(16, HexadecimalDigit, is_hexadecimal_digit, mapper)
 }
 
 /// Parses an octal integer.
 pub fn octal_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
-  do_integer("o", "O", 8, OctalDigit, is_octal_digit, mapper)
-}
-
-/// Parses an integer of different numeral systems (binary, decimal, hexadecimal
-/// and octal).
-pub fn integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
-  fn(parsed) {
-    let Parsed(tokens, _, _) = parsed
-
-    case tokens {
-      ["0", "b", ..] | ["0", "B", ..] -> parsed |> binary_integer(mapper)
-      ["0", "d", ..] | ["0", "D", ..] -> parsed |> decimal_integer(mapper)
-      ["0", "x", ..] | ["0", "X", ..] -> parsed |> hexadecimal_integer(mapper)
-      ["0", "o", ..] | ["0", "O", ..] -> parsed |> octal_integer(mapper)
-      _ ->
-        parsed
-        |> one_of([
-          decimal_integer(mapper),
-          binary_integer(mapper),
-          hexadecimal_integer(mapper),
-          octal_integer(mapper),
-        ])
-    }
-  }
+  do_integer(8, OctalDigit, is_octal_digit, mapper)
 }
 
 /// Parses a decimal float.
-/// 
-/// This function will be adjusted to support different numeric
-/// formats in later versions.
 pub fn float(mapper: fn(a, Float) -> a) -> Parser(a, a, b) {
   fn(parsed) {
     let Parsed(tokens, pos, _) = parsed
@@ -585,8 +559,6 @@ fn do_digit(
 }
 
 fn do_integer(
-  format_prefix_lowercase: String,
-  format_prefix_uppercase: String,
   base: Int,
   expected_token: ExpectedToken,
   digit_predicate: fn(String) -> Bool,
@@ -596,13 +568,6 @@ fn do_integer(
     let Parsed(tokens, pos, value) = parsed
 
     let #(advanced_parsed, sign) = case tokens {
-      ["0", format_prefix, ..rest]
-        if format_prefix == format_prefix_lowercase
-        || format_prefix == format_prefix_uppercase
-      -> #(
-        Parsed(rest, increment_parser_position(pos, "0" <> format_prefix), ""),
-        "",
-      )
       ["+", ..rest] -> #(
         Parsed(rest, increment_parser_position(pos, "+"), ""),
         "",
