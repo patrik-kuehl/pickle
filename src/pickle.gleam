@@ -238,6 +238,11 @@ pub fn binary_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_digit(2, BinaryDigit, is_binary_digit, mapper)
 }
 
+/// Parses a single hexadecimal digit (0-9, a-f, A-F).
+pub fn hexadecimal_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_digit(16, HexadecimalDigit, is_hexadecimal_digit, mapper)
+}
+
 /// Parses a binary integer.
 pub fn binary_integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_integer("b", "B", 2, BinaryDigit, is_binary_digit, mapper)

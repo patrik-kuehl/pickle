@@ -396,6 +396,47 @@ pub fn binary_digit_test() {
   |> because("the parser could consume two binary digits")
 }
 
+pub fn hexadecimal_digit_test() {
+  pickle.hexadecimal_digit(fn(value, digit) { value + digit })
+  |> pickle.then(pickle.hexadecimal_digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("1g", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(HexadecimalDigit, "g", ParserPosition(0, 1)))
+  |> because("the second token is not a hexadecimal digit")
+
+  pickle.hexadecimal_digit(fn(value, integer) { value + integer })
+  |> pickle.parse("h", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(HexadecimalDigit, "h", ParserPosition(0, 0)))
+  |> because("the provided input is not a hexadecimal digit")
+
+  pickle.string("ab\nd", pickle.drop)
+  |> pickle.then(
+    pickle.hexadecimal_digit(fn(value, integer) { value + integer }),
+  )
+  |> pickle.parse("ab\nc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    String("ab\nd"),
+    "ab\nc",
+    ParserPosition(1, 0),
+  ))
+  |> because("a prior parser failed")
+
+  pickle.hexadecimal_digit(fn(value, integer) { value + integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(HexadecimalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.hexadecimal_digit(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.hexadecimal_digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("C8", 0, _)
+  |> should.be_ok()
+  |> should.equal(20)
+  |> because("the parser could consume two hexadecimal digits")
+}
+
 pub fn binary_integer_test() {
   pickle.binary_integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
