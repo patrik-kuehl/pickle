@@ -1,8 +1,8 @@
 import gleam/list
 import gleeunit/should
 import pickle.{
-  type Parser, BinaryDigit, DecimalDigit, GuardError, HexadecimalDigit,
-  OctalDigit, OneOfError, ParserPosition, String, UnexpectedEof, UnexpectedToken,
+  type Parser, DecimalDigit, GuardError, OneOfError, ParserPosition, String,
+  UnexpectedEof, UnexpectedToken,
 }
 
 pub fn points_parser_test() {
@@ -66,12 +66,7 @@ pub fn point_parser_test() {
   |> should.equal(
     OneOfError([
       UnexpectedToken(String("["), "(", ParserPosition(0, 0)),
-      OneOfError([
-        UnexpectedToken(OctalDigit, ",", ParserPosition(0, 1)),
-        UnexpectedToken(HexadecimalDigit, ",", ParserPosition(0, 1)),
-        UnexpectedToken(BinaryDigit, ",", ParserPosition(0, 1)),
-        UnexpectedToken(DecimalDigit, ",", ParserPosition(0, 1)),
-      ]),
+      UnexpectedToken(DecimalDigit, ",", ParserPosition(0, 1)),
     ]),
   )
 
