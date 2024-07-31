@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 -   Added `pickle/hexadecimal_digit` to parse a single hexadecimal digit.
 -   Added `pickle/binary_digit` to parse a single binary digit.
 
+### Changed
+
+-   Changed `pickle/integer` to only parse decimal integers.
+
+### Removed
+
+-   Removed `pickle/decimal_integer` in favor of `pickle/integer`.
+
 ## [0.5.0] - 2024-07-28
 
 ### Added
