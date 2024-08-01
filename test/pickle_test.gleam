@@ -437,6 +437,45 @@ pub fn hexadecimal_digit_test() {
   |> because("the parser could consume two hexadecimal digits")
 }
 
+pub fn octal_digit_test() {
+  pickle.octal_digit(fn(value, digit) { value + digit })
+  |> pickle.then(pickle.octal_digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("18", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(OctalDigit, "8", ParserPosition(0, 1)))
+  |> because("the second token is not an octal digit")
+
+  pickle.octal_digit(fn(value, integer) { value + integer })
+  |> pickle.parse("9", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(OctalDigit, "9", ParserPosition(0, 0)))
+  |> because("the provided input is not an octal digit")
+
+  pickle.string("ab\nd", pickle.drop)
+  |> pickle.then(pickle.octal_digit(fn(value, integer) { value + integer }))
+  |> pickle.parse("ab\nc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    String("ab\nd"),
+    "ab\nc",
+    ParserPosition(1, 0),
+  ))
+  |> because("a prior parser failed")
+
+  pickle.octal_digit(fn(value, integer) { value + integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(OctalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.octal_digit(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.octal_digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("27", 0, _)
+  |> should.be_ok()
+  |> should.equal(9)
+  |> because("the parser could consume two octal digits")
+}
+
 pub fn integer_test() {
   pickle.integer(fn(_, integer) { integer })
   |> pickle.parse("not_an_integer", 0, _)
