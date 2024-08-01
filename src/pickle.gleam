@@ -243,6 +243,11 @@ pub fn hexadecimal_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_digit(16, HexadecimalDigit, is_hexadecimal_digit, mapper)
 }
 
+/// Parses a single octal digit (0-7).
+pub fn octal_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_digit(8, OctalDigit, is_octal_digit, mapper)
+}
+
 /// Parses a decimal integer.
 pub fn integer(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_integer(10, DecimalDigit, is_decimal_digit, mapper)
