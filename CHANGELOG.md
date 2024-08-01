@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+-   Added `pickle/octal_digit` to parse a single octal digit.
 -   Added `pickle/hexadecimal_digit` to parse a single hexadecimal digit.
 -   Added `pickle/binary_digit` to parse a single binary digit.
 
