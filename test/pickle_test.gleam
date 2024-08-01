@@ -357,6 +357,45 @@ pub fn many1_test() {
   |> because("the given parser could be run three times without failing")
 }
 
+pub fn digit_test() {
+  pickle.digit(fn(value, digit) { value + digit })
+  |> pickle.then(pickle.digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("1b", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "b", ParserPosition(0, 1)))
+  |> because("the second token is not a decimal digit")
+
+  pickle.digit(fn(value, integer) { value + integer })
+  |> pickle.parse("C", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(DecimalDigit, "C", ParserPosition(0, 0)))
+  |> because("the provided input is not a decimal digit")
+
+  pickle.string("ab\nd", pickle.drop)
+  |> pickle.then(pickle.digit(fn(value, integer) { value + integer }))
+  |> pickle.parse("ab\nc110", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    String("ab\nd"),
+    "ab\nc",
+    ParserPosition(1, 0),
+  ))
+  |> because("a prior parser failed")
+
+  pickle.digit(fn(value, integer) { value + integer })
+  |> pickle.parse("", 0, _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(DecimalDigit, ParserPosition(0, 0)))
+  |> because("no input was left to parse")
+
+  pickle.digit(fn(value, integer) { value + integer })
+  |> pickle.then(pickle.digit(fn(value, digit) { value + digit }))
+  |> pickle.parse("12", 0, _)
+  |> should.be_ok()
+  |> should.equal(3)
+  |> because("the parser could consume two decimal digits")
+}
+
 pub fn binary_digit_test() {
   pickle.binary_digit(fn(value, digit) { value + digit })
   |> pickle.then(pickle.binary_digit(fn(value, digit) { value + digit }))

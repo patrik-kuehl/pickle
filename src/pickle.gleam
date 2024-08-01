@@ -233,6 +233,11 @@ pub fn many1(
   }
 }
 
+/// Parses a single decimal digit (0-9).
+pub fn digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
+  do_digit(10, DecimalDigit, is_decimal_digit, mapper)
+}
+
 /// Parses a single binary digit (0|1).
 pub fn binary_digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_digit(2, BinaryDigit, is_binary_digit, mapper)
