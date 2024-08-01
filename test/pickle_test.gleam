@@ -357,6 +357,67 @@ pub fn many1_test() {
   |> because("the given parser could be run three times without failing")
 }
 
+pub fn times_test() {
+  pickle.any(string.append)
+  |> pickle.then(
+    pickle.string("test", string.append)
+    |> pickle.times(3),
+  )
+  |> pickle.then(pickle.string("something", string.append))
+  |> pickle.parse("", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(NonEof, ParserPosition(0, 0)))
+  |> because("a prior parser failed")
+
+  pickle.string("test", string.append)
+  |> pickle.times(3)
+  |> pickle.then(pickle.string("something", string.append))
+  |> pickle.parse("testtest", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedEof(String("test"), ParserPosition(0, 8)))
+  |> because("the given parser could only succeed twice")
+
+  pickle.string("someone", string.append)
+  |> pickle.times(0)
+  |> pickle.then(pickle.string("something", string.append))
+  |> pickle.parse("someone", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    String("something"),
+    "someo",
+    ParserPosition(0, 4),
+  ))
+  |> because("the given parser did not run once")
+
+  pickle.string("someone", string.append)
+  |> pickle.times(-1)
+  |> pickle.then(pickle.string("something", string.append))
+  |> pickle.parse("someone", "", _)
+  |> should.be_error()
+  |> should.equal(UnexpectedToken(
+    String("something"),
+    "someo",
+    ParserPosition(0, 4),
+  ))
+  |> because("the given parser did not run once")
+
+  pickle.string("test", string.append)
+  |> pickle.times(3)
+  |> pickle.then(pickle.string("something", pickle.drop))
+  |> pickle.parse("testtesttestsomething", "", _)
+  |> should.be_ok()
+  |> should.equal("testtesttest")
+  |> because("the given parser could succeed three times")
+
+  pickle.string("test", string.append)
+  |> pickle.times(1)
+  |> pickle.then(pickle.string("something", pickle.drop))
+  |> pickle.parse("testsomething", "", _)
+  |> should.be_ok()
+  |> should.equal("test")
+  |> because("the given parser could succeed once")
+}
+
 pub fn digit_test() {
   pickle.digit(fn(value, digit) { value + digit })
   |> pickle.then(pickle.digit(fn(value, digit) { value + digit }))

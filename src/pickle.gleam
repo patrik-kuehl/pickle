@@ -233,6 +233,15 @@ pub fn many1(
   }
 }
 
+/// Applies the given parser a specified amount of times.
+pub fn times(parser: Parser(a, a, c), parse_times: Int) -> Parser(a, a, c) {
+  case parse_times {
+    _ if parse_times <= 0 -> fn(parsed) { Ok(parsed) }
+    1 -> parser
+    _ -> then(parser, times(parser, parse_times - 1))
+  }
+}
+
 /// Parses a single decimal digit (0-9).
 pub fn digit(mapper: fn(a, Int) -> a) -> Parser(a, a, b) {
   do_digit(10, DecimalDigit, is_decimal_digit, mapper)
